@@ -41,8 +41,7 @@ export const config = {
          * - _next/static (static files)
          * - _next/image (image optimization files)
          * - favicon.ico (favicon file)
-         * - login (login page itself)
          */
-        '/((?!api|_next/static|_next/image|favicon.ico|login|ycg-logo-full.png|ycg-logo.png).*)',
+        '/((?!api|_next/static|_next/image|favicon.ico).*)',
     ],
 };
