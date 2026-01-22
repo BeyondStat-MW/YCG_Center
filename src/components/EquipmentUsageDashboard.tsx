@@ -40,6 +40,7 @@ interface Measurement {
         first_name?: string;
         last_name?: string;
         display_name?: string;
+        level?: string;
     };
 }
 
@@ -72,6 +73,7 @@ const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, per
 
 export default function EquipmentUsageDashboard({ measurements }: EquipmentUsageDashboardProps) {
     const [period, setPeriod] = useState<'1d' | '1w' | '1m' | '1y' | 'all'>('1m');
+    const [selectedLevel, setSelectedLevel] = useState('all');
 
     // 1. Filter Measurements by Time & Type
     const filteredMeasurements = useMemo(() => {
@@ -147,16 +149,29 @@ export default function EquipmentUsageDashboard({ measurements }: EquipmentUsage
         });
     }, [filteredMeasurements]);
 
+    const levels = useMemo(() => {
+        const set = new Set<string>();
+        measurements.forEach(m => {
+            if (m.profiles?.level) set.add(m.profiles.level);
+        });
+        return Array.from(set).sort();
+    }, [measurements]);
+
     // 4. Calculate Top 10 Performance Metrics (FIXED KEYS)
     const topPerformers = useMemo(() => {
-        const deviceBests: Record<string, Record<string, { name: string, score: number, date: string }>> = {};
+        const deviceBests: Record<string, Record<string, { name: string, score: number, date: string, level?: string }>> = {};
 
         filteredMeasurements.forEach(m => {
+            // Level Filter for Leaderboard Only
+            if (selectedLevel !== 'all' && m.profiles?.level !== selectedLevel) return;
+
             const device = m.test_type;
             const pid = m.player_id;
             if (!pid || !device) return;
 
             const pName = m.profiles?.name || m.profiles?.display_name || 'Unknown';
+            const pLevel = m.profiles?.level;
+
             let score = 0;
             let isLowerBetter = false;
             const dateStr = m.recorded_at || m.test_date || '';
@@ -246,17 +261,17 @@ export default function EquipmentUsageDashboard({ measurements }: EquipmentUsage
             // Update Best
             const currentBest = deviceBests[device][pid];
             if (!currentBest) {
-                deviceBests[device][pid] = { name: pName, score, date: dateStr };
+                deviceBests[device][pid] = { name: pName, score, date: dateStr, level: pLevel };
             } else {
                 if (isLowerBetter) {
-                    if (score < currentBest.score) deviceBests[device][pid] = { name: pName, score, date: dateStr };
+                    if (score < currentBest.score) deviceBests[device][pid] = { name: pName, score, date: dateStr, level: pLevel };
                 } else {
-                    if (score > currentBest.score) deviceBests[device][pid] = { name: pName, score, date: dateStr };
+                    if (score > currentBest.score) deviceBests[device][pid] = { name: pName, score, date: dateStr, level: pLevel };
                 }
             }
         });
 
-        const result: Record<string, { name: string, score: number, unit: string }[]> = {};
+        const result: Record<string, { name: string, score: number, unit: string, level?: string }[]> = {};
 
         ['ForceDecks', 'NordBord', 'ForceFrame', 'SmartSpeed', 'DynaMo'].forEach(dev => {
             let unit = '';
@@ -277,7 +292,7 @@ export default function EquipmentUsageDashboard({ measurements }: EquipmentUsage
         });
 
         return result;
-    }, [filteredMeasurements]);
+    }, [filteredMeasurements, selectedLevel]);
 
 
     // KPI Helpers
@@ -442,10 +457,30 @@ export default function EquipmentUsageDashboard({ measurements }: EquipmentUsage
 
             {/* Performance Top 10 Section */}
             <div className="space-y-4">
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                    <Award className="text-amber-500" size={20} />
-                    장비별 퍼포먼스 Top 10
-                </h3>
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                    <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <Award className="text-amber-500" size={20} />
+                        장비별 퍼포먼스 Top 10
+                    </h3>
+
+                    {/* Level Filter */}
+                    <div className="flex items-center p-1 bg-white border border-slate-200 rounded-lg shadow-sm">
+                        {['all', ...levels].map((level) => (
+                            <button
+                                key={level}
+                                onClick={() => setSelectedLevel(level)}
+                                className={clsx(
+                                    "px-3 py-1 text-xs font-semibold rounded-md transition-all",
+                                    selectedLevel === level
+                                        ? "bg-slate-900 text-white"
+                                        : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                                )}
+                            >
+                                {level === 'all' ? '전체' : level}
+                            </button>
+                        ))}
+                    </div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                     {['ForceDecks', 'NordBord', 'ForceFrame', 'SmartSpeed', 'DynaMo'].map(dev => (
                         <Card key={dev} className="bg-white border-none shadow-sm overflow-hidden flex flex-col">
