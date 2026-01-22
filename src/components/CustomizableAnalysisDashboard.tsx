@@ -71,7 +71,7 @@ const HEIGHT_MAP: Record<CardHeight, string> = {
 const COLORS = ['#3B82F6', '#F97316', '#10B981', '#6366F1', '#EC4899', '#8B5CF6'];
 
 const SHORT_DATE_FORMAT = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' });
+    return new Date(dateStr).toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' });
 };
 
 const IGNORE_KEYS = ['id', 'test', 'date', 'profile', 'valid', 'notes', 'device', 'version', 'pct', 'count', 'idx', 'impulse', 'repetition', 'weight', 'duration', 'mass', 'bmi', 'timestamp', 'tenant', 'recording', 'parameter', 'attribute', 'uuid'];
