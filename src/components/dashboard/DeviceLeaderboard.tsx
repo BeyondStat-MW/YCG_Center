@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { TabGroup, TabList, Tab, TabPanels, TabPanel, Card, Title, Text, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Select, SelectItem } from "@tremor/react";
+import { TabGroup, TabList, Tab, TabPanels, TabPanel, Card, Title, Text, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge } from "@tremor/react";
 import { DeviceData } from "@/app/actions/leaderboard";
 
 const METRIC_LABELS: Record<string, string> = {
@@ -56,16 +56,30 @@ export default function DeviceLeaderboard({ data }: { data: DeviceData[] }) {
 
     return (
         <Card className="mt-6 bg-white shadow-sm rounded-xl ring-1 ring-zinc-200/50">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-4">
-                <div className="flex items-center gap-4">
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                     <Title>장비별 퍼포먼스 Top 10</Title>
-                    <div className="w-32">
-                        <Select value={selectedLevel} onValueChange={setSelectedLevel} placeholder="수준 선택">
-                            <SelectItem value="all">전체</SelectItem>
-                            {levels.map(level => (
-                                <SelectItem key={level} value={level}>{level}</SelectItem>
-                            ))}
-                        </Select>
+
+                    {/* Level Filter Segmented Control */}
+                    <div className="flex items-center p-1 bg-zinc-100/50 border border-zinc-200 rounded-lg w-fit">
+                        {['all', ...levels].map((level) => {
+                            const isSelected = selectedLevel === level;
+                            const label = level === 'all' ? '전체' : level;
+                            return (
+                                <button
+                                    key={level}
+                                    onClick={() => setSelectedLevel(level)}
+                                    className={`
+                                        px-3 py-1 text-sm font-medium rounded-md transition-all duration-200
+                                        ${isSelected
+                                            ? 'bg-slate-900 text-white shadow-sm'
+                                            : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200/50'}
+                                    `}
+                                >
+                                    {label}
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
                 <Badge color="gray">{filteredData.map(d => d.players.length).reduce((a, b) => a + b, 0)} Records</Badge>
