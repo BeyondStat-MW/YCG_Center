@@ -515,7 +515,7 @@ export default function EquipmentUsageDashboard({ measurements }: EquipmentUsage
                                                     <span className="text-xs font-medium text-slate-700">{p.name}</span>
                                                 </div>
                                                 <span className="text-xs font-bold text-blue-600">
-                                                    {dev === 'SmartSpeed' && p.score === 999 ? '-' : p.score.toFixed(1)}
+                                                    {dev === 'SmartSpeed' && p.score === 999 ? '-' : p.score.toFixed(dev === 'SmartSpeed' ? 3 : 1)}
                                                     <span className="text-[9px] text-slate-400 ml-0.5">{p.unit}</span>
                                                 </span>
                                             </div>
