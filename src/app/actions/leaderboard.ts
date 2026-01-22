@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase-admin";
 export type LeaderboardEntry = {
     player_id: string;
     name: string;
+    level?: string;
     date: string;
     metrics: Record<string, string | number | null>;
 };
@@ -27,7 +28,7 @@ export async function getDeviceLeaderboards(team_id: string): Promise<DeviceData
             player_id,
             recorded_at,
             metrics,
-            profiles!inner(name)
+            profiles!inner(name, level)
         `)
         .eq('team_id', team_id)
         .eq('test_type', 'CMJ')
@@ -39,7 +40,7 @@ export async function getDeviceLeaderboards(team_id: string): Promise<DeviceData
     const { data: nbData } = await supabase
         .from('measurements')
         .select(`
-            player_id, recorded_at, metrics, profiles!inner(name)
+            player_id, recorded_at, metrics, profiles!inner(name, level)
         `)
         .eq('team_id', team_id)
         .eq('test_type', 'NordBord')
@@ -51,7 +52,7 @@ export async function getDeviceLeaderboards(team_id: string): Promise<DeviceData
     const { data: ffData } = await supabase
         .from('measurements')
         .select(`
-            player_id, recorded_at, metrics, profiles!inner(name)
+            player_id, recorded_at, metrics, profiles!inner(name, level)
         `)
         .eq('team_id', team_id)
         .eq('test_type', 'ForceFrame')
@@ -63,7 +64,7 @@ export async function getDeviceLeaderboards(team_id: string): Promise<DeviceData
     const { data: ssData } = await supabase
         .from('measurements')
         .select(`
-            player_id, recorded_at, metrics, profiles!inner(name)
+            player_id, recorded_at, metrics, profiles!inner(name, level)
         `)
         .eq('team_id', team_id)
         .eq('test_type', 'SmartSpeed')
@@ -75,7 +76,7 @@ export async function getDeviceLeaderboards(team_id: string): Promise<DeviceData
     const { data: dynamoData } = await supabase
         .from('measurements')
         .select(`
-            player_id, recorded_at, metrics, profiles!inner(name)
+            player_id, recorded_at, metrics, profiles!inner(name, level)
         `)
         .eq('team_id', team_id)
         .eq('test_type', 'Dynamo')
@@ -120,6 +121,7 @@ function processLatest(data: any[], keys: string[]): LeaderboardEntry[] {
         result.push({
             player_id: row.player_id,
             name: row.profiles?.name || "Unknown",
+            level: row.profiles?.level || "Unknown",
             date: new Date(row.recorded_at).toLocaleDateString(),
             metrics
         });

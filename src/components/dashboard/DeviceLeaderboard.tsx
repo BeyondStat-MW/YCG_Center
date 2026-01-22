@@ -1,6 +1,7 @@
 "use client";
 
-import { TabGroup, TabList, Tab, TabPanels, TabPanel, Card, Title, Text, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge } from "@tremor/react";
+import { useState, useMemo } from "react";
+import { TabGroup, TabList, Tab, TabPanels, TabPanel, Card, Title, Text, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Select, SelectItem } from "@tremor/react";
 import { DeviceData } from "@/app/actions/leaderboard";
 
 const METRIC_LABELS: Record<string, string> = {
@@ -20,12 +21,7 @@ const METRIC_LABELS: Record<string, string> = {
 };
 
 function formatName(name: string) {
-    // If name contains space (e.g., "Woojin Che"), try to flip it.
-    // Assuming Korean names are 2-4 chars usually if Hangeul, but here they are likely Romanized.
-    // If it's pure Hangeul, just return.
     if (!name.includes(' ')) return name;
-
-    // Simple heuristic: if it looks like "First Last", flip to "Last First"
     const parts = name.split(' ');
     if (parts.length === 2) {
         return `${parts[1]} ${parts[0]}`;
@@ -34,32 +30,63 @@ function formatName(name: string) {
 }
 
 export default function DeviceLeaderboard({ data }: { data: DeviceData[] }) {
+    const [selectedLevel, setSelectedLevel] = useState("all");
+
+    // Extract unique levels from data
+    const levels = useMemo(() => {
+        const allLevels = new Set<string>();
+        data.forEach(d => {
+            d.players.forEach(p => {
+                if (p.level) allLevels.add(p.level);
+            });
+        });
+        return Array.from(allLevels).sort();
+    }, [data]);
+
+    // Filter data based on selected level
+    const filteredData = useMemo(() => {
+        if (selectedLevel === "all") return data;
+        return data.map(d => ({
+            ...d,
+            players: d.players.filter(p => p.level === selectedLevel)
+        }));
+    }, [data, selectedLevel]);
+
     if (!data || data.length === 0) return null;
 
     return (
-
         <Card className="mt-6 bg-white shadow-sm rounded-xl ring-1 ring-zinc-200/50">
-            <div className="flex justify-between items-center mb-4">
-                <Title>최근 측정 기록</Title>
-                <Badge color="gray">{data.map(d => d.players.length).reduce((a, b) => a + b, 0)} Records</Badge>
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-4">
+                <div className="flex items-center gap-4">
+                    <Title>장비별 퍼포먼스 Top 10</Title>
+                    <div className="w-32">
+                        <Select value={selectedLevel} onValueChange={setSelectedLevel} placeholder="수준 선택">
+                            <SelectItem value="all">전체</SelectItem>
+                            {levels.map(level => (
+                                <SelectItem key={level} value={level}>{level}</SelectItem>
+                            ))}
+                        </Select>
+                    </div>
+                </div>
+                <Badge color="gray">{filteredData.map(d => d.players.length).reduce((a, b) => a + b, 0)} Records</Badge>
             </div>
 
             <TabGroup>
                 <TabList className="mt-2" variant="solid">
-                    {data.map((d) => (
+                    {filteredData.map((d) => (
                         <Tab key={d.device}>{d.device}</Tab>
                     ))}
                 </TabList>
                 <TabPanels>
-                    {data.map((d) => (
+                    {filteredData.map((d) => (
                         <TabPanel key={d.device}>
                             <div className="mt-6">
                                 <Table>
                                     <TableHead>
                                         <TableRow>
                                             <TableHeaderCell>이름</TableHeaderCell>
+                                            <TableHeaderCell>수준</TableHeaderCell>
                                             <TableHeaderCell>날짜</TableHeaderCell>
-                                            {/* Dynamic Headers with Korean Mapping */}
                                             {d.players.length > 0 && Object.keys(d.players[0].metrics).map((key) => (
                                                 <TableHeaderCell key={key} className="text-right">
                                                     {METRIC_LABELS[key] || key.replace(/_/g, ' ')}
@@ -69,10 +96,13 @@ export default function DeviceLeaderboard({ data }: { data: DeviceData[] }) {
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
-                                        {d.players.map((player) => (
+                                        {d.players.slice(0, 10).map((player) => (
                                             <TableRow key={player.player_id}>
                                                 <TableCell className="font-medium text-zinc-900">
                                                     {formatName(player.name)}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge size="xs" color="blue">{player.level || '-'}</Badge>
                                                 </TableCell>
                                                 <TableCell>{player.date}</TableCell>
                                                 {Object.entries(player.metrics).map(([key, value]) => (
@@ -87,8 +117,8 @@ export default function DeviceLeaderboard({ data }: { data: DeviceData[] }) {
                                         ))}
                                         {d.players.length === 0 && (
                                             <TableRow>
-                                                <TableCell colSpan={5} className="text-center text-zinc-400 py-8">
-                                                    해당 장비의 측정 데이터가 없습니다.
+                                                <TableCell colSpan={6} className="text-center text-zinc-400 py-8">
+                                                    해당 수준의 측정 데이터가 없습니다.
                                                 </TableCell>
                                             </TableRow>
                                         )}
