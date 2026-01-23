@@ -655,8 +655,47 @@ export default function PlayerReport() {
         const change = (first && last) ? last.value - first.value : 0;
         const pct = (first && first.value > 0) ? ((change / first.value) * 100).toFixed(1) : '0.0';
 
+        const getChartOptions = () => {
+            const values = [
+                ...item.history.map((h: any) => h.value),
+                item.avgValue,
+                item.refValue
+            ].filter((v: any) => typeof v === 'number' && v > 0);
+
+            let minVal = 0;
+            let maxVal = 10;
+
+            if (values.length > 0) {
+                minVal = Math.min(...values);
+                maxVal = Math.max(...values);
+            }
+
+            const range = maxVal - minVal;
+            // Increase padding to 25% to ensure labels fit
+            const padding = range * 0.25 || (maxVal * 0.1);
+
+            return {
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: { padding: { right: 10, left: 0, top: 10, bottom: 5 } },
+                scales: {
+                    x: { offset: true, grid: { display: false }, ticks: { font: { size: 10 } } },
+                    y: {
+                        display: false,
+                        // Allow start from 0 if min is small, otherwise zoom in
+                        min: Math.max(0, minVal - padding),
+                        max: maxVal + padding
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: (ctx: any) => `${ctx.dataset.label || ''}: ${ctx.parsed.y} ${item.unit}` } }
+                }
+            };
+        };
+
         return (
-            <div key={item.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-slate-200 transition-all print:border-slate-200 print:shadow-none mb-4 break-inside-avoid overflow-hidden">
+            <div key={item.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-slate-200 transition-all print:border-slate-200 print:shadow-none flex-1 flex flex-col break-inside-avoid overflow-hidden">
                 <div className="flex justify-between items-start mb-4">
                     <div>
                         <h3 className="font-bold text-slate-700 tracking-tight">{item.label}</h3>
@@ -675,7 +714,7 @@ export default function PlayerReport() {
                         </div>
                     )}
                 </div>
-                <div className="h-[210px] w-full">
+                <div className="flex-1 w-full min-h-[140px]">
                     {item.history.length > 0 ? (
                         item.chart === 'line' ? (
                             <Line
@@ -704,19 +743,7 @@ export default function PlayerReport() {
                                         }
                                     ]
                                 }}
-                                options={{
-                                    responsive: true,
-                                    maintainAspectRatio: false,
-                                    layout: { padding: { right: 10, left: 0 } },
-                                    scales: {
-                                        x: { offset: true, grid: { display: false }, ticks: { font: { size: 10 } } },
-                                        y: { display: false, min: Math.min(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || Infinity) * 0.95, max: Math.max(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || 0) * 1.05 }
-                                    },
-                                    plugins: {
-                                        legend: { display: false },
-                                        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label || ''}: ${ctx.parsed.y} ${item.unit}` } }
-                                    }
-                                }}
+                                options={getChartOptions() as any}
                                 plugins={[{
                                     id: 'customLabelsLine_' + item.id,
                                     afterDatasetsDraw(chart) {
@@ -785,19 +812,7 @@ export default function PlayerReport() {
                                         }
                                     ] as any
                                 }}
-                                options={{
-                                    responsive: true,
-                                    maintainAspectRatio: false,
-                                    layout: { padding: { right: 10, left: 0 } },
-                                    scales: {
-                                        x: { offset: true, grid: { display: false }, ticks: { font: { size: 10 } } },
-                                        y: { display: false, min: Math.min(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || Infinity) * 0.95, max: Math.max(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || 0) * 1.05 }
-                                    },
-                                    plugins: {
-                                        legend: { display: false },
-                                        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label || ''}: ${ctx.parsed.y} ${item.unit}` } }
-                                    }
-                                }}
+                                options={getChartOptions() as any}
                                 plugins={[{
                                     id: 'customLabelsBar_' + item.id,
                                     afterDatasetsDraw(chart) {
@@ -900,7 +915,7 @@ export default function PlayerReport() {
         const cmjStats = getStats(cmjData);
 
         return (
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-slate-200 transition-all print:border-slate-200 print:shadow-none mb-4 break-inside-avoid overflow-hidden">
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-slate-200 transition-all print:border-slate-200 print:shadow-none flex-1 flex flex-col break-inside-avoid overflow-hidden">
                 <div className="flex justify-between items-start mb-4">
                     <div>
                         <h3 className="font-bold text-slate-700 tracking-tight">Squat Jump vs CMJ Comparison</h3>
@@ -923,7 +938,7 @@ export default function PlayerReport() {
                         )}
                     </div>
                 </div>
-                <div className="h-[210px] w-full">
+                <div className="flex-1 w-full min-h-[140px]">
                     <Line
                         data={{
                             labels: sortedDates,
@@ -992,7 +1007,9 @@ export default function PlayerReport() {
                                         const min = Math.min(...values);
                                         const max = Math.max(...values);
                                         const range = max - min;
-                                        return min - (range * 0.2 || min * 0.1);
+                                        // 25% padding for labels
+                                        const padding = range * 0.25 || (max * 0.1);
+                                        return Math.max(0, min - padding);
                                     },
                                     max: (ctx) => {
                                         const values = [
@@ -1000,12 +1017,14 @@ export default function PlayerReport() {
                                             ...cmjData.filter(d => d !== null) as number[],
                                             sjAvg || 0, cmjAvg || 0
                                         ].filter(v => v > 0);
-                                        if (values.length === 0) return 100;
+                                        if (values.length === 0) return 10;
                                         const min = Math.min(...values);
                                         const max = Math.max(...values);
                                         const range = max - min;
-                                        return max + (range * 0.25 || max * 0.1);
+                                        const padding = range * 0.25 || (max * 0.1);
+                                        return max + padding;
                                     }
+
                                 }
                             },
                             plugins: {
@@ -1086,14 +1105,24 @@ export default function PlayerReport() {
             .filter(p => p.x > 0 && p.y > 0);
 
         return (
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-slate-200 transition-all print:border-slate-200 print:shadow-none mb-4 break-inside-avoid overflow-hidden">
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-slate-200 transition-all print:border-slate-200 print:shadow-none flex-1 flex flex-col break-inside-avoid overflow-hidden">
                 <div className="flex justify-between items-start mb-4">
                     <div>
                         <h3 className="font-bold text-slate-700 tracking-tight">Elasticity Profiling (CMJ vs SJ)</h3>
                         <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">ForceDecks</div>
                     </div>
+                    <div className="flex-1 flex justify-end">
+                        <div className="inline-block text-left text-[9px] text-slate-500 bg-slate-50 p-2 rounded border border-slate-100 leading-tight">
+                            <span className="font-bold block mb-1 text-slate-700">EUR = CMJ / Squat Jump</span>
+                            <div className="space-y-0.5">
+                                <div>• &lt; 1.1: Elastic (탄력적)</div>
+                                <div>• 1.1 ~ 1.15: Optimal (이상적)</div>
+                                <div>• &gt; 1.15: Strength (근력 우세)</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div className="h-[300px] w-full">
+                <div className="flex-1 w-full min-h-[140px]">
                     <Scatter
                         data={{
                             datasets: [
@@ -1142,25 +1171,78 @@ export default function PlayerReport() {
                                 const drawRatioLine = (ratio: number, color: string, label: string) => {
                                     const xMax = x.max;
                                     const yTarget = xMax * ratio;
+                                    // Calculate end point visible on chart
+                                    let xEnd = xMax;
+                                    let yEnd = yTarget;
+
+                                    // If line goes above yMax, clip it to yMax intersection
+                                    if (yTarget > y.max) {
+                                        yEnd = y.max;
+                                        xEnd = y.max / ratio;
+                                    }
+
                                     ctx.beginPath();
                                     ctx.moveTo(x.getPixelForValue(0), y.getPixelForValue(0));
-                                    ctx.lineTo(x.getPixelForValue(xMax), y.getPixelForValue(yTarget));
+                                    ctx.lineTo(x.getPixelForValue(xEnd), y.getPixelForValue(yEnd));
                                     ctx.strokeStyle = color;
                                     ctx.lineWidth = 1;
                                     ctx.setLineDash([5, 5]);
                                     ctx.stroke();
+
                                     ctx.font = 'bold 9px sans-serif';
                                     ctx.fillStyle = color;
                                     ctx.textAlign = 'right';
-                                    const labelX = x.getPixelForValue(xMax) - 5;
-                                    const labelY = y.getPixelForValue(yTarget) - 5;
-                                    if (labelY > chart.chartArea.top && labelY < chart.chartArea.bottom) ctx.fillText(label, labelX, labelY);
+                                    const labelX = x.getPixelForValue(xEnd) - 5;
+                                    const labelY = y.getPixelForValue(yEnd) - 5;
+                                    if (labelY > chart.chartArea.top && labelY < chart.chartArea.bottom) {
+                                        ctx.fillText(label, labelX, labelY);
+                                    } else if (yTarget > y.max) {
+                                        // If clipped by top, draw label a bit lower
+                                        ctx.fillText(label, labelX, chart.chartArea.top + 10);
+                                    }
                                 };
-                                drawRatioLine(1.1, '#10B981', 'EUR 1.1');
-                                drawRatioLine(1.0, '#94A3B8', 'EUR 1.0');
+                                drawRatioLine(1.1, '#3B82F6', 'Elastic < 1.1');
+                                drawRatioLine(1.15, '#EF4444', 'Strength > 1.15');
                                 ctx.restore();
                             }
-                        }]}
+                        },
+                        {
+                            id: 'customLabels_Scatter_EUR',
+                            afterDatasetsDraw(chart) {
+                                const { ctx } = chart;
+                                chart.data.datasets.forEach((dataset, i) => {
+                                    if (i === 1) { // Player point
+                                        const meta = chart.getDatasetMeta(i);
+                                        if (!meta.hidden) {
+                                            meta.data.forEach((element, index) => {
+                                                const pointData = dataset.data[index] as any;
+                                                const { x, y } = element.tooltipPosition();
+
+                                                ctx.save();
+                                                ctx.fillStyle = '#1e293b';
+                                                ctx.font = 'bold 10px sans-serif';
+                                                ctx.textAlign = 'center';
+                                                ctx.textBaseline = 'bottom';
+
+                                                const labelText = dataset.label || '';
+                                                const eur = (pointData.y / pointData.x).toFixed(2);
+                                                const valueText = `EUR: ${eur}`;
+
+                                                // Draw Name
+                                                ctx.fillText(labelText, x, y - 14);
+                                                // Draw Value
+                                                ctx.font = '10px sans-serif';
+                                                ctx.fillStyle = '#64748b';
+                                                ctx.fillText(valueText, x, y - 4);
+
+                                                ctx.restore();
+                                            });
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                        ]}
                     />
                 </div>
             </div>
@@ -1189,14 +1271,23 @@ export default function PlayerReport() {
             .filter(p => p.x > 0 && p.y > 0);
 
         return (
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-slate-200 transition-all print:border-slate-200 print:shadow-none mb-4 break-inside-avoid overflow-hidden">
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-slate-200 transition-all print:border-slate-200 print:shadow-none flex-1 flex flex-col break-inside-avoid overflow-hidden">
                 <div className="flex justify-between items-start mb-4">
                     <div>
                         <h3 className="font-bold text-slate-700 tracking-tight">Adductor vs Abductor Strength</h3>
                         <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">ForceFrame</div>
                     </div>
+                    <div className="flex-1 flex justify-end">
+                        <div className="inline-block text-left text-[9px] text-slate-500 bg-slate-50 p-2 rounded border border-slate-100 leading-tight">
+                            <span className="font-bold block mb-1 text-slate-700">Add / Abd Ratio</span>
+                            <div className="space-y-0.5">
+                                <div>• &lt; 0.8: Risk (위험)</div>
+                                <div>• 0.9 ~ 1.0: Goal (목표)</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div className="h-[300px] w-full">
+                <div className="flex-1 w-full min-h-[140px]">
                     <Scatter
                         data={{
                             datasets: [
@@ -1227,7 +1318,8 @@ export default function PlayerReport() {
                             },
                             plugins: {
                                 legend: { display: false },
-                                tooltip: { callbacks: { label: (ctx: any) => `${ctx.dataset.label}: Abd ${ctx.raw.x}, Add ${ctx.raw.y}` } }
+                                tooltip: { callbacks: { label: (ctx: any) => `${ctx.dataset.label}: Hip Ratio ${(ctx.raw.y / ctx.raw.x).toFixed(2)}` } }
+
                             }
                         }}
                         plugins={[{
@@ -1238,6 +1330,7 @@ export default function PlayerReport() {
                                 const drawRatioLine = (ratio: number, color: string, label: string) => {
                                     const xMax = x.max;
                                     const yTarget = xMax * ratio;
+                                    if (yTarget > y.max) return;
                                     ctx.beginPath();
                                     ctx.moveTo(x.getPixelForValue(0), y.getPixelForValue(0));
                                     ctx.lineTo(x.getPixelForValue(xMax), y.getPixelForValue(yTarget)); // Simple full width
@@ -1252,11 +1345,49 @@ export default function PlayerReport() {
                                     const labelY = y.getPixelForValue(yTarget) - 5;
                                     if (labelY > chart.chartArea.top && labelY < chart.chartArea.bottom) ctx.fillText(label, labelX, labelY);
                                 };
-                                drawRatioLine(1.0, '#10B981', 'Ratio 1.0');
-                                drawRatioLine(0.9, '#EF4444', 'Ratio 0.9');
+                                drawRatioLine(0.9, '#10B981', 'Ratio 0.9');
+                                drawRatioLine(0.8, '#EF4444', 'Ratio 0.8');
                                 ctx.restore();
                             }
-                        }]}
+                        },
+                        {
+                            id: 'customLabels_Scatter',
+                            afterDatasetsDraw(chart) {
+                                const { ctx } = chart;
+                                chart.data.datasets.forEach((dataset, i) => {
+                                    // Only draw labels for the main player (dataset index 1)
+                                    if (i === 1) {
+                                        const meta = chart.getDatasetMeta(i);
+                                        if (!meta.hidden) {
+                                            meta.data.forEach((element, index) => {
+                                                const pointData = dataset.data[index] as any;
+                                                const { x, y } = element.tooltipPosition();
+
+                                                ctx.save();
+                                                ctx.fillStyle = '#1e293b';
+                                                ctx.font = 'bold 10px sans-serif';
+                                                ctx.textAlign = 'center';
+                                                ctx.textBaseline = 'bottom';
+
+                                                const labelText = dataset.label || '';
+                                                const ratio = (pointData.y / pointData.x).toFixed(2);
+                                                const valueText = `Ratio: ${ratio}`;
+
+                                                // Draw Name
+                                                ctx.fillText(labelText, x, y - 14);
+                                                // Draw Value
+                                                ctx.font = '10px sans-serif';
+                                                ctx.fillStyle = '#64748b';
+                                                ctx.fillText(valueText, x, y - 4);
+
+                                                ctx.restore();
+                                            });
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                        ]}
                     />
                 </div>
             </div>
@@ -1266,7 +1397,7 @@ export default function PlayerReport() {
     return (
         <div id="printable-area" className="w-full max-w-full space-y-6 pb-20 fade-in print:p-0 print:max-w-none">
             <style type="text/css" media="print">{`
-                @page { size: A4 portrait; margin: 5mm; }
+                @page { size: A4 portrait; margin: 10mm 5mm 10mm 5mm; }
                 body { visibility: hidden; }
                 #printable-area {
                     visibility: visible;
@@ -1277,10 +1408,18 @@ export default function PlayerReport() {
                 }
                 @media print {
                     body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                    #printable-area { zoom: 0.6; width: 100%; }
-                    @page { size: A4 portrait; margin: auto; }
+                    #printable-area { zoom: 0.55; width: 100%; }
                 }
             `}</style>
+
+            {/* Print Header with Logo */}
+            <div className="hidden print:flex justify-between items-center mb-8">
+                <img src="/ycg-logo-full.png" alt="윤청구 퍼포먼스 센터" className="h-12 object-contain" />
+                <div className="text-right">
+                    <h1 className="text-2xl font-black text-slate-900 tracking-tight">{profile.name} 리포트</h1>
+                    <p className="text-sm text-slate-400 font-medium tracking-tight">Yoon Performance Center Analysis Report</p>
+                </div>
+            </div>
 
             {/* Header */}
             <div className="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-100 print:hidden">
@@ -1301,7 +1440,7 @@ export default function PlayerReport() {
 
                 {/* 1. Profile Section */}
                 {/* 1. Profile Section */}
-                <div className="col-span-12 lg:col-span-3 print:col-span-3 bg-slate-900 rounded-2xl p-6 shadow-lg shadow-slate-200/50 relative overflow-hidden flex flex-col justify-between min-h-[400px]">
+                <div className="col-span-12 lg:col-span-3 print:col-span-3 bg-slate-900 rounded-2xl p-6 shadow-lg shadow-slate-200/50 relative overflow-hidden flex flex-col justify-between min-h-[300px]">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500 rounded-full blur-[80px] opacity-20 transform translate-x-20 -translate-y-20"></div>
                     <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500 rounded-full blur-[60px] opacity-10 transform -translate-x-10 translate-y-10"></div>
 
@@ -1363,7 +1502,7 @@ export default function PlayerReport() {
                 {/* 2. Body Composition Charts */}
                 <div className="col-span-12 lg:col-span-4 print:col-span-4 flex flex-col gap-4 h-full">
                     {/* Height Chart */}
-                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex-1 min-h-[160px] overflow-hidden flex flex-col justify-between">
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex-1 min-h-[140px] overflow-hidden flex flex-col justify-between">
                         <div className="flex justify-between items-start mb-2">
                             <div>
                                 <h3 className="font-bold text-slate-700 tracking-tight">신장</h3>
@@ -1388,7 +1527,7 @@ export default function PlayerReport() {
                                 );
                             })()}
                         </div>
-                        <div className="h-[160px] w-full">
+                        <div className="h-[135px] w-full">
                             <Line
                                 data={{
                                     labels: bodyCompStats.height.map((h: any) => h.date),
@@ -1425,7 +1564,7 @@ export default function PlayerReport() {
                     </div>
 
                     {/* Weight/Muscle/Fat Chart */}
-                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex-1 min-h-[160px] overflow-hidden flex flex-col justify-between">
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex-1 min-h-[140px] overflow-hidden flex flex-col justify-between">
                         <div className="flex justify-between items-start mb-2">
                             <div>
                                 <h3 className="font-bold text-slate-700 tracking-tight">체중 / 근육 / 체지방</h3>
@@ -1454,7 +1593,7 @@ export default function PlayerReport() {
                                 );
                             })()}
                         </div>
-                        <div className="h-[160px] w-full">
+                        <div className="h-[135px] w-full">
                             <Line
                                 data={{
                                     labels: bodyCompStats.bodyComp.labels,
@@ -1507,7 +1646,7 @@ export default function PlayerReport() {
 
                 {/* 3. Octagon Chart */}
                 {/* 3. Octagon Chart */}
-                <div className="col-span-12 lg:col-span-5 print:col-span-5 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col relative overflow-hidden h-full min-h-[400px]">
+                <div className="col-span-12 lg:col-span-5 print:col-span-5 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col relative overflow-hidden h-full min-h-[300px]">
                     <div className="flex items-center gap-3 self-start mb-2 z-10">
                         <div className="p-1.5 bg-blue-600 rounded-lg text-white shadow"><Scale size={16} /></div>
                         <div>
@@ -1520,7 +1659,7 @@ export default function PlayerReport() {
                         <div className="flex items-center gap-1"><div className="w-2 h-2 border border-slate-400 border-dashed rounded-full"></div><span className="font-medium text-slate-400">동일 수준 평균</span></div>
                     </div>
                     <div className="w-full flex-1 flex items-center justify-center relative z-0">
-                        <div className="w-[380px] h-[380px]">
+                        <div className="w-full h-full min-h-[350px]">
                             <Radar
                                 data={{
                                     labels: octagonData.map(d => d.subject),
@@ -1593,10 +1732,10 @@ export default function PlayerReport() {
             </div>
 
             {/* Bottom Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-4 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-4 items-stretch">
 
                 {/* Left: Measurement Trends */}
-                <div className="bg-[#FFFCEB] p-6 rounded-3xl border border-amber-100 shadow-sm space-y-4 print:bg-transparent print:border-none print:p-0">
+                <div className="bg-[#FFFCEB] p-6 rounded-3xl border border-amber-100 shadow-sm space-y-4 print:bg-transparent print:border-none print:p-0 h-full flex flex-col">
                     <div className="flex items-center gap-3 border-b border-amber-200/50 pb-4 mb-2">
                         <div className="p-2 bg-amber-500 rounded-lg text-white shadow-lg shadow-amber-200"><TrendingUp size={20} /></div>
                         <h2 className="text-xl font-black text-amber-900 tracking-tight">측정 결과 추이</h2>
@@ -1616,7 +1755,7 @@ export default function PlayerReport() {
                 </div>
 
                 {/* Right: Insight */}
-                <div className="bg-[#FFFCEB] p-6 rounded-3xl border border-amber-100 shadow-sm space-y-4 print:bg-transparent print:border-none print:p-0 bg-yellow-50/50">
+                <div className="bg-[#FFFCEB] p-6 rounded-3xl border border-amber-100 shadow-sm space-y-4 print:bg-transparent print:border-none print:p-0 bg-yellow-50/50 h-full flex flex-col">
                     <div className="flex items-center gap-3 border-b border-amber-200/50 pb-4 mb-2">
                         <div className="p-2 bg-amber-500 rounded-lg text-white shadow-lg shadow-amber-200"><Zap size={20} /></div>
                         <h2 className="text-xl font-black text-amber-900 tracking-tight">Insight</h2>
@@ -1630,7 +1769,7 @@ export default function PlayerReport() {
                     {renderHipStrengthProfiling()}
                 </div>
             </div>
-        </div>
+        </div >
     );
 }
 
