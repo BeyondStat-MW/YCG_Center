@@ -1256,7 +1256,7 @@ export default function PlayerReport() {
                 </div>
 
                 {/* Right: Insight */}
-                <div className="bg-[#OFFCEB] p-6 rounded-3xl border border-amber-100 shadow-sm space-y-4 print:bg-transparent print:border-none print:p-0 bg-yellow-50/50">
+                <div className="bg-[#FFFCEB] p-6 rounded-3xl border border-amber-100 shadow-sm space-y-4 print:bg-transparent print:border-none print:p-0 bg-yellow-50/50">
                     <div className="flex items-center gap-3 border-b border-amber-200/50 pb-4 mb-2">
                         <div className="p-2 bg-amber-500 rounded-lg text-white shadow-lg shadow-amber-200"><Zap size={20} /></div>
                         <h2 className="text-xl font-black text-amber-900 tracking-tight">Insight</h2>
