@@ -968,7 +968,33 @@ export default function PlayerReport() {
                             layout: { padding: { right: 10, left: 0 } },
                             scales: {
                                 x: { offset: true, grid: { display: false }, ticks: { font: { size: 10 } } },
-                                y: { display: false, min: Math.min(...sjData.filter(d => d !== null) as number[], ...cmjData.filter(d => d !== null) as number[], sjAvg || Infinity, cmjAvg || Infinity) * 0.95, max: Math.max(...sjData.filter(d => d !== null) as number[], ...cmjData.filter(d => d !== null) as number[], sjAvg || 0, cmjAvg || 0) * 1.05 }
+                                y: {
+                                    display: false,
+                                    min: (ctx) => {
+                                        const values = [
+                                            ...sjData.filter(d => d !== null) as number[],
+                                            ...cmjData.filter(d => d !== null) as number[],
+                                            sjAvg || 0, cmjAvg || 0
+                                        ].filter(v => v > 0);
+                                        if (values.length === 0) return 0;
+                                        const min = Math.min(...values);
+                                        const max = Math.max(...values);
+                                        const range = max - min;
+                                        return min - (range * 0.2 || min * 0.1);
+                                    },
+                                    max: (ctx) => {
+                                        const values = [
+                                            ...sjData.filter(d => d !== null) as number[],
+                                            ...cmjData.filter(d => d !== null) as number[],
+                                            sjAvg || 0, cmjAvg || 0
+                                        ].filter(v => v > 0);
+                                        if (values.length === 0) return 100;
+                                        const min = Math.min(...values);
+                                        const max = Math.max(...values);
+                                        const range = max - min;
+                                        return max + (range * 0.25 || max * 0.1);
+                                    }
+                                }
                             },
                             plugins: {
                                 legend: { display: true, position: 'top', align: 'end', labels: { boxWidth: 8, font: { size: 9, weight: 'bold' } } },
@@ -1160,10 +1186,27 @@ export default function PlayerReport() {
                                 }}
                                 options={{
                                     responsive: true, maintainAspectRatio: false,
-                                    layout: { padding: { right: 10, left: 0 } },
+                                    layout: { padding: { right: 10, left: 0, top: 20, bottom: 10 } },
                                     scales: {
                                         x: { display: true, grid: { display: false }, ticks: { font: { size: 9 } } },
-                                        y: { display: false, min: Math.min(...bodyCompStats.height.map((h: any) => h.value)) * 0.95, max: Math.max(...bodyCompStats.height.map((h: any) => h.value)) * 1.05 }
+                                        y: {
+                                            display: false,
+                                            // Dynamic scale adjustment to fit labels
+                                            min: (ctx) => {
+                                                const values = bodyCompStats.height.map((h: any) => h.value);
+                                                const min = Math.min(...values);
+                                                const max = Math.max(...values);
+                                                const range = max - min;
+                                                return min - (range * 0.2 || min * 0.05);
+                                            },
+                                            max: (ctx) => {
+                                                const values = bodyCompStats.height.map((h: any) => h.value);
+                                                const min = Math.min(...values);
+                                                const max = Math.max(...values);
+                                                const range = max - min;
+                                                return max + (range * 0.2 || max * 0.05);
+                                            }
+                                        }
                                     },
                                     plugins: { legend: { display: false } }
                                 }}
@@ -1213,21 +1256,36 @@ export default function PlayerReport() {
                                 }}
                                 options={{
                                     responsive: true, maintainAspectRatio: false,
-                                    layout: { padding: { right: 10, left: 0 } },
+                                    layout: { padding: { right: 10, left: 0, top: 20, bottom: 10 } },
                                     scales: {
                                         x: { display: true, grid: { display: false }, ticks: { font: { size: 9 } } },
                                         y: {
                                             display: false,
-                                            min: Math.min(
-                                                ...bodyCompStats.bodyComp.weight.filter((v: number | null) => v !== null) as number[],
-                                                ...bodyCompStats.bodyComp.muscle.filter((v: number | null) => v !== null) as number[],
-                                                ...bodyCompStats.bodyComp.fat.filter((v: number | null) => v !== null) as number[]
-                                            ) * 0.95,
-                                            max: Math.max(
-                                                ...bodyCompStats.bodyComp.weight.filter((v: number | null) => v !== null) as number[],
-                                                ...bodyCompStats.bodyComp.muscle.filter((v: number | null) => v !== null) as number[],
-                                                ...bodyCompStats.bodyComp.fat.filter((v: number | null) => v !== null) as number[]
-                                            ) * 1.05
+                                            // Dynamic scale adjustment to fit labels
+                                            min: (ctx) => {
+                                                const values = [
+                                                    ...bodyCompStats.bodyComp.weight.filter((v: number | null) => v !== null) as number[],
+                                                    ...bodyCompStats.bodyComp.muscle.filter((v: number | null) => v !== null) as number[],
+                                                    ...bodyCompStats.bodyComp.fat.filter((v: number | null) => v !== null) as number[]
+                                                ];
+                                                if (values.length === 0) return 0;
+                                                const min = Math.min(...values);
+                                                const max = Math.max(...values);
+                                                const range = max - min;
+                                                return min - (range * 0.2 || min * 0.05);
+                                            },
+                                            max: (ctx) => {
+                                                const values = [
+                                                    ...bodyCompStats.bodyComp.weight.filter((v: number | null) => v !== null) as number[],
+                                                    ...bodyCompStats.bodyComp.muscle.filter((v: number | null) => v !== null) as number[],
+                                                    ...bodyCompStats.bodyComp.fat.filter((v: number | null) => v !== null) as number[]
+                                                ];
+                                                if (values.length === 0) return 100;
+                                                const min = Math.min(...values);
+                                                const max = Math.max(...values);
+                                                const range = max - min;
+                                                return max + (range * 0.2 || max * 0.05);
+                                            }
                                         }
                                     },
                                     plugins: { legend: { display: false } }
@@ -1252,7 +1310,7 @@ export default function PlayerReport() {
                         <div className="flex items-center gap-1"><div className="w-2 h-2 border border-slate-400 border-dashed rounded-full"></div><span className="font-medium text-slate-400">동일 수준 평균</span></div>
                     </div>
                     <div className="w-full flex-1 flex items-center justify-center relative z-0">
-                        <div className="w-[320px] h-[320px]">
+                        <div className="w-[380px] h-[380px]">
                             <Radar
                                 data={{
                                     labels: octagonData.map(d => d.subject),
