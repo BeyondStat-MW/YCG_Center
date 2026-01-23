@@ -424,7 +424,7 @@ export default function PlayerReport() {
     }, [measurements, globalAverages, profile]);
 
     const bodyCompStats = useMemo(() => {
-        if (!measurements) return { height: [], weightComp: [] };
+        if (!measurements) return { height: [], weight: [], muscle: [], fat: [] };
         const manualMeasurements = measurements.filter((m: any) => m.test_type === 'Manual');
 
         const getValue = (m: any, keys: string[]) => {
@@ -803,6 +803,147 @@ export default function PlayerReport() {
         </div>
     );
 
+    const renderCombinedJumpChart = () => {
+        const sjItem = strengthenStats.find(i => i.id === 'sj');
+        const cmjItem = strengthenStats.find(i => i.id === 'cmj');
+
+        if (!sjItem && !cmjItem) return null;
+
+        // Merge histories by date
+        const sjHistory = sjItem?.history || [];
+        const cmjHistory = cmjItem?.history || [];
+
+        // Create a map of all dates
+        const dateMap = new Map<string, { sj: number | null, cmj: number | null }>();
+        const allDates = new Set<string>();
+
+        sjHistory.forEach((h: any) => { dateMap.set(h.date, { sj: h.value, cmj: null }); allDates.add(h.date); });
+        cmjHistory.forEach((h: any) => {
+            if (dateMap.has(h.date)) {
+                const entry = dateMap.get(h.date)!;
+                entry.cmj = h.value;
+            } else {
+                dateMap.set(h.date, { sj: null, cmj: h.value });
+                allDates.add(h.date);
+            }
+        });
+
+        // Sort dates
+        const sortedDates = Array.from(allDates).sort((a, b) => {
+            const [m1, d1] = a.split('.').map(Number);
+            const [m2, d2] = b.split('.').map(Number);
+            if (m1 !== m2) return m1 - m2;
+            return d1 - d2;
+        });
+
+        const sjData = sortedDates.map(d => dateMap.get(d)?.sj ?? null);
+        const cmjData = sortedDates.map(d => dateMap.get(d)?.cmj ?? null);
+
+        // Averages
+        const sjAvg = sjItem?.avgValue || 0;
+        const cmjAvg = cmjItem?.avgValue || 0;
+
+        return (
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-slate-200 transition-all print:border-slate-200 print:shadow-none mb-4 break-inside-avoid">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-slate-700 tracking-tight">Squat Jump vs CMJ Comparison</h3>
+                    <div className="px-2 py-0.5 bg-slate-50 rounded text-[9px] text-slate-400 font-black uppercase tracking-widest">ForceDecks</div>
+                </div>
+                <div className="h-[140px] w-full">
+                    <Line
+                        data={{
+                            labels: sortedDates,
+                            datasets: [
+                                {
+                                    label: 'Squat Jump',
+                                    data: sjData,
+                                    borderColor: '#3B82F6', // Blue
+                                    backgroundColor: '#3B82F6',
+                                    tension: 0.1,
+                                    pointRadius: 4,
+                                    pointHoverRadius: 6,
+                                    spanGaps: true,
+                                    order: 2
+                                },
+                                {
+                                    label: 'SJ Avg',
+                                    data: Array(sortedDates.length).fill(sjAvg || null),
+                                    borderColor: '#93C5FD', // Light Blue
+                                    borderWidth: 2,
+                                    borderDash: [5, 5],
+                                    pointRadius: 0,
+                                    fill: false,
+                                    spanGaps: true,
+                                    order: 3
+                                },
+                                {
+                                    label: 'CMJ',
+                                    data: cmjData,
+                                    borderColor: '#EF4444', // Red
+                                    backgroundColor: '#EF4444',
+                                    tension: 0.1,
+                                    pointRadius: 4,
+                                    pointHoverRadius: 6,
+                                    spanGaps: true,
+                                    order: 0
+                                },
+                                {
+                                    label: 'CMJ Avg',
+                                    data: Array(sortedDates.length).fill(cmjAvg || null),
+                                    borderColor: '#FCA5A5', // Light Red
+                                    borderWidth: 2,
+                                    borderDash: [5, 5],
+                                    pointRadius: 0,
+                                    fill: false,
+                                    spanGaps: true,
+                                    order: 1
+                                }
+                            ]
+                        }}
+                        options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                x: { offset: true, grid: { display: false }, ticks: { font: { size: 10 } } },
+                                y: { display: false, min: 0 }
+                            },
+                            plugins: {
+                                legend: { display: true, position: 'top', align: 'end', labels: { boxWidth: 8, font: { size: 9, weight: 'bold' } } },
+                                tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y} cm` } }
+                            }
+                        }}
+                        plugins={[{
+                            id: 'customLabelsJumpComp',
+                            afterDatasetsDraw(chart) {
+                                const { ctx, data } = chart;
+                                ctx.save();
+                                // Draw labels for SJ and CMJ points only
+                                [0, 2].forEach(datasetIndex => {
+                                    if (chart.getDatasetMeta(datasetIndex).hidden) return;
+                                    chart.getDatasetMeta(datasetIndex).data.forEach((point, index) => {
+                                        const value = data.datasets[datasetIndex].data[index] as number;
+                                        if (value != null) {
+                                            const x = (point as any).x;
+                                            const y = (point as any).y;
+                                            if (x != null && y != null) {
+                                                ctx.font = 'bold 9px sans-serif';
+                                                ctx.fillStyle = data.datasets[datasetIndex].borderColor as string;
+                                                ctx.textAlign = 'center';
+                                                ctx.textBaseline = 'bottom';
+                                                ctx.fillText(value.toString(), x, y - 6);
+                                            }
+                                        }
+                                    });
+                                });
+                                ctx.restore();
+                            }
+                        }]}
+                    />
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div id="printable-area" className="w-full max-w-full space-y-6 pb-20 fade-in print:p-0 print:max-w-none">
             <style type="text/css" media="print">{`
@@ -946,7 +1087,18 @@ export default function PlayerReport() {
                         <div className="p-2 bg-amber-500 rounded-lg text-white shadow-lg shadow-amber-200"><TrendingUp size={20} /></div>
                         <h2 className="text-xl font-black text-amber-900 tracking-tight">측정 결과 추이</h2>
                     </div>
-                    {strengthenStats.filter(item => ['sj', 'cmj', 'hop', 'nord'].includes(item.id)).map(renderChart)}
+
+                    {/* 1. Combined Jump Chart (SJ vs CMJ) */}
+                    {renderCombinedJumpChart()}
+
+                    {/* 2. CMJ RSI */}
+                    {strengthenStats.filter(i => i.id === 'rsi').map(renderChart)}
+
+                    {/* 3. Hop Test RSI */}
+                    {strengthenStats.filter(i => i.id === 'hop').map(renderChart)}
+
+                    {/* 4. Hamstring Ecc */}
+                    {strengthenStats.filter(i => i.id === 'nord').map(renderChart)}
                 </div>
 
                 {/* Right: Insight */}
@@ -955,7 +1107,11 @@ export default function PlayerReport() {
                         <div className="p-2 bg-amber-500 rounded-lg text-white shadow-lg shadow-amber-200"><Zap size={20} /></div>
                         <h2 className="text-xl font-black text-amber-900 tracking-tight">Insight</h2>
                     </div>
-                    {strengthenStats.filter(item => ['eur', 'ff_ratio'].includes(item.id)).map(renderChart)}
+                    {/* 1. EUR */}
+                    {strengthenStats.filter(item => item.id === 'eur').map(renderChart)}
+
+                    {/* 2. Hip Ratio */}
+                    {strengthenStats.filter(item => item.id === 'ff_ratio').map(renderChart)}
                 </div>
             </div>
         </div>
