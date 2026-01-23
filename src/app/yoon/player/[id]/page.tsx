@@ -1269,7 +1269,7 @@ export default function PlayerReport() {
                 </div>
             </div>
         </div>
-    </div >
+    </div>
     );
 }
 
