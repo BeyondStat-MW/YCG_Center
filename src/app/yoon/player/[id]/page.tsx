@@ -675,6 +675,7 @@ export default function PlayerReport() {
                             options={{
                                 responsive: true,
                                 maintainAspectRatio: false,
+                                layout: { padding: { top: 20, bottom: 10, left: 10, right: 10 } },
                                 scales: {
                                     x: { offset: true, grid: { display: false }, ticks: { font: { size: 10 } } },
                                     y: { display: false, min: Math.min(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || Infinity) * 0.95, max: Math.max(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || 0) * 1.05 }
@@ -755,6 +756,7 @@ export default function PlayerReport() {
                             options={{
                                 responsive: true,
                                 maintainAspectRatio: false,
+                                layout: { padding: { top: 20, bottom: 10, left: 10, right: 10 } },
                                 scales: {
                                     x: { offset: true, grid: { display: false }, ticks: { font: { size: 10 } } },
                                     y: { display: false, min: Math.min(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || Infinity) * 0.95, max: Math.max(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || 0) * 1.05 }
@@ -927,7 +929,7 @@ export default function PlayerReport() {
                             afterDatasetsDraw(chart) {
                                 const { ctx, data } = chart;
                                 ctx.save();
-                                // Draw labels for SJ and CMJ points only
+                                // Draw labels for SJ and CMJ points
                                 [0, 2].forEach(datasetIndex => {
                                     if (chart.getDatasetMeta(datasetIndex).hidden) return;
                                     chart.getDatasetMeta(datasetIndex).data.forEach((point, index) => {
@@ -944,6 +946,26 @@ export default function PlayerReport() {
                                             }
                                         }
                                     });
+                                });
+
+                                // Draw labels for Averages (SJ Avg: 1, CMJ Avg: 3)
+                                [1, 3].forEach(datasetIndex => {
+                                    if (chart.getDatasetMeta(datasetIndex).hidden) return;
+                                    const meta = chart.getDatasetMeta(datasetIndex);
+                                    if (meta.data.length > 0) {
+                                        const lastIdx = meta.data.length - 1;
+                                        const point = meta.data[lastIdx];
+                                        const value = data.datasets[datasetIndex].data[lastIdx] as number;
+                                        if (point && value != null) {
+                                            const x = (point as any).x;
+                                            const y = (point as any).y;
+                                            ctx.font = 'bold 10px sans-serif';
+                                            ctx.fillStyle = data.datasets[datasetIndex].borderColor as string;
+                                            ctx.textAlign = 'left';
+                                            ctx.textBaseline = 'middle';
+                                            ctx.fillText(`${value.toFixed(1)} (Avg)`, x + 5, y);
+                                        }
+                                    }
                                 });
                                 ctx.restore();
                             }
@@ -1125,21 +1147,23 @@ export default function PlayerReport() {
                         </div>
                     </div>
                 </div>
+            </div>
 
-                {/* 3. Octagon Chart */}
-                <div className="col-span-12 lg:col-span-5 print:col-span-5 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col relative overflow-hidden">
-                    <div className="flex items-center gap-3 self-start mb-2 z-10">
-                        <div className="p-1.5 bg-blue-600 rounded-lg text-white shadow"><Scale size={16} /></div>
-                        <div>
-                            <h2 className="text-sm font-black text-slate-800 tracking-tight">Performance Octagon</h2>
-                            <span className="text-[10px] font-bold text-slate-400">Latest Test: {lastUpdateDate}</span>
-                        </div>
+            {/* 3. Octagon Chart */}
+            <div className="col-span-12 lg:col-span-5 print:col-span-5 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-center relative overflow-hidden h-[400px]">
+                <div className="flex items-center gap-3 self-start mb-2 z-10">
+                    <div className="p-1.5 bg-blue-600 rounded-lg text-white shadow"><Scale size={16} /></div>
+                    <div>
+                        <h2 className="text-sm font-black text-slate-800 tracking-tight">Performance Octagon</h2>
+                        <span className="text-[10px] font-bold text-slate-400">Latest Test: {lastUpdateDate}</span>
                     </div>
-                    <div className="absolute top-4 right-4 flex gap-3 text-[10px] items-center z-10">
-                        <div className="flex items-center gap-1"><div className="w-2 h-2 bg-slate-900 rounded-full"></div><span className="font-bold text-slate-700">본인</span></div>
-                        <div className="flex items-center gap-1"><div className="w-2 h-2 border border-slate-400 border-dashed rounded-full"></div><span className="font-medium text-slate-400">동일 수준 평균</span></div>
-                    </div>
-                    <div className="w-full h-[375px] mt-4 relative z-0">
+                </div>
+                <div className="absolute top-4 right-4 flex gap-3 text-[10px] items-center z-10">
+                    <div className="flex items-center gap-1"><div className="w-2 h-2 bg-slate-900 rounded-full"></div><span className="font-bold text-slate-700">본인</span></div>
+                    <div className="flex items-center gap-1"><div className="w-2 h-2 border border-slate-400 border-dashed rounded-full"></div><span className="font-medium text-slate-400">동일 수준 평균</span></div>
+                </div>
+                <div className="w-full flex-1 flex items-center justify-center relative z-0">
+                    <div className="w-full h-[375px]">
                         <Radar
                             data={{
                                 labels: octagonData.map(d => d.subject),
