@@ -643,7 +643,7 @@ export default function PlayerReport() {
                 <h3 className="font-bold text-slate-700 tracking-tight">{item.label}</h3>
                 <div className="px-2 py-0.5 bg-slate-50 rounded text-[9px] text-slate-400 font-black uppercase tracking-widest">{item.dev}</div>
             </div>
-            <div className="h-[280px] w-full">
+            <div className="h-[210px] w-full">
                 {item.history.length > 0 ? (
                     item.chart === 'line' ? (
                         <Line
@@ -677,7 +677,7 @@ export default function PlayerReport() {
                                 maintainAspectRatio: false,
                                 scales: {
                                     x: { offset: true, grid: { display: false }, ticks: { font: { size: 10 } } },
-                                    y: { display: false, min: Math.min(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || Infinity) * 0.9, max: Math.max(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || 0) * 1.3 }
+                                    y: { display: false, min: Math.min(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || Infinity) * 0.95, max: Math.max(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || 0) * 1.05 }
                                 },
                                 plugins: {
                                     legend: { display: false },
@@ -757,7 +757,7 @@ export default function PlayerReport() {
                                 maintainAspectRatio: false,
                                 scales: {
                                     x: { offset: true, grid: { display: false }, ticks: { font: { size: 10 } } },
-                                    y: { display: false, min: Math.min(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || Infinity) * 0.9, max: Math.max(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || 0) * 1.3 }
+                                    y: { display: false, min: Math.min(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || Infinity) * 0.95, max: Math.max(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || 0) * 1.05 }
                                 },
                                 plugins: {
                                     legend: { display: false },
@@ -859,7 +859,7 @@ export default function PlayerReport() {
                     <h3 className="font-bold text-slate-700 tracking-tight">Squat Jump vs CMJ Comparison</h3>
                     <div className="px-2 py-0.5 bg-slate-50 rounded text-[9px] text-slate-400 font-black uppercase tracking-widest">ForceDecks</div>
                 </div>
-                <div className="h-[280px] w-full">
+                <div className="h-[210px] w-full">
                     <Line
                         data={{
                             labels: sortedDates,
@@ -1014,7 +1014,7 @@ export default function PlayerReport() {
                                 </div>
                             }
                         </div>
-                        <div className="h-[280px] w-full">
+                        <div className="h-[210px] w-full">
                             <Line
                                 data={{
                                     labels: bodyCompStats.height.map((h: any) => h.date),
@@ -1037,7 +1037,7 @@ export default function PlayerReport() {
                                 <span className="text-xs font-bold text-slate-800">{bodyCompStats.weight[bodyCompStats.weight.length - 1].value} kg</span>
                             }
                         </div>
-                        <div className="h-[280px] w-full">
+                        <div className="h-[210px] w-full">
                             <Line
                                 data={{
                                     labels: bodyCompStats.bodyComp.labels,
@@ -1070,7 +1070,7 @@ export default function PlayerReport() {
                         <div className="flex items-center gap-1"><div className="w-2 h-2 bg-slate-900 rounded-full"></div><span className="font-bold text-slate-700">본인</span></div>
                         <div className="flex items-center gap-1"><div className="w-2 h-2 border border-slate-400 border-dashed rounded-full"></div><span className="font-medium text-slate-400">동일 수준 평균</span></div>
                     </div>
-                    <div className="w-full h-[500px] mt-4 relative z-0">
+                    <div className="w-full h-[375px] mt-4 relative z-0">
                         <Radar
                             data={{
                                 labels: octagonData.map(d => d.subject),
