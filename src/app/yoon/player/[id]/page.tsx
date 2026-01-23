@@ -1147,87 +1147,87 @@ export default function PlayerReport() {
                         </div>
                     </div>
                 </div>
-            </div>
 
-            {/* 3. Octagon Chart */}
-            {/* 3. Octagon Chart */}
-            <div className="col-span-12 lg:col-span-5 print:col-span-5 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col relative overflow-hidden h-[400px]">
-                <div className="flex items-center gap-3 self-start mb-2 z-10">
-                    <div className="p-1.5 bg-blue-600 rounded-lg text-white shadow"><Scale size={16} /></div>
-                    <div>
-                        <h2 className="text-sm font-black text-slate-800 tracking-tight">Performance Octagon</h2>
-                        <span className="text-[10px] font-bold text-slate-400">Latest Test: {lastUpdateDate}</span>
+                {/* 3. Octagon Chart */}
+                {/* 3. Octagon Chart */}
+                <div className="col-span-12 lg:col-span-5 print:col-span-5 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col relative overflow-hidden h-[400px]">
+                    <div className="flex items-center gap-3 self-start mb-2 z-10">
+                        <div className="p-1.5 bg-blue-600 rounded-lg text-white shadow"><Scale size={16} /></div>
+                        <div>
+                            <h2 className="text-sm font-black text-slate-800 tracking-tight">Performance Octagon</h2>
+                            <span className="text-[10px] font-bold text-slate-400">Latest Test: {lastUpdateDate}</span>
+                        </div>
                     </div>
-                </div>
-                <div className="absolute top-4 right-4 flex gap-3 text-[10px] items-center z-10">
-                    <div className="flex items-center gap-1"><div className="w-2 h-2 bg-slate-900 rounded-full"></div><span className="font-bold text-slate-700">본인</span></div>
-                    <div className="flex items-center gap-1"><div className="w-2 h-2 border border-slate-400 border-dashed rounded-full"></div><span className="font-medium text-slate-400">동일 수준 평균</span></div>
-                </div>
-                <div className="w-full flex-1 flex items-center justify-center relative z-0">
-                    <div className="w-[320px] h-[320px]">
-                        <Radar
-                            data={{
-                                labels: octagonData.map(d => d.subject),
-                                datasets: [
-                                    { label: profile?.name || "본인", data: octagonData.map(d => d.A), backgroundColor: 'rgba(15, 23, 42, 0.4)', borderColor: '#0F172A', borderWidth: 2, pointBackgroundColor: '#0F172A', pointRadius: 3 },
-                                    { label: `동일 수준 평균`, data: octagonData.map(d => d.B), backgroundColor: 'transparent', borderColor: '#94A3B8', borderWidth: 1, borderDash: [4, 4], pointRadius: 0 }
-                                ]
-                            }}
-                            options={{
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                scales: { r: { min: 0, max: 100, ticks: { display: false, stepSize: 20 }, pointLabels: { font: { size: 9, weight: 'bold' }, color: '#64748B' }, grid: { color: '#F1F5F9' }, angleLines: { color: '#F1F5F9' } } },
-                                plugins: { legend: { display: false } },
-                                layout: { padding: 20 }
-                            }}
-                            plugins={[{
-                                id: 'customOctagonLabels',
-                                afterDatasetsDraw(chart) {
-                                    const { ctx, data } = chart;
-                                    ctx.save();
-                                    const meta = chart.getDatasetMeta(0);
-                                    if (!meta.hidden) {
-                                        meta.data.forEach((point, index) => {
-                                            const value = data.datasets[0].data[index] as number;
-                                            const { x, y } = point.tooltipPosition(true);
+                    <div className="absolute top-4 right-4 flex gap-3 text-[10px] items-center z-10">
+                        <div className="flex items-center gap-1"><div className="w-2 h-2 bg-slate-900 rounded-full"></div><span className="font-bold text-slate-700">본인</span></div>
+                        <div className="flex items-center gap-1"><div className="w-2 h-2 border border-slate-400 border-dashed rounded-full"></div><span className="font-medium text-slate-400">동일 수준 평균</span></div>
+                    </div>
+                    <div className="w-full flex-1 flex items-center justify-center relative z-0">
+                        <div className="w-[320px] h-[320px]">
+                            <Radar
+                                data={{
+                                    labels: octagonData.map(d => d.subject),
+                                    datasets: [
+                                        { label: profile?.name || "본인", data: octagonData.map(d => d.A), backgroundColor: 'rgba(15, 23, 42, 0.4)', borderColor: '#0F172A', borderWidth: 2, pointBackgroundColor: '#0F172A', pointRadius: 3 },
+                                        { label: `동일 수준 평균`, data: octagonData.map(d => d.B), backgroundColor: 'transparent', borderColor: '#94A3B8', borderWidth: 1, borderDash: [4, 4], pointRadius: 0 }
+                                    ]
+                                }}
+                                options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    scales: { r: { min: 0, max: 100, ticks: { display: false, stepSize: 20 }, pointLabels: { font: { size: 9, weight: 'bold' }, color: '#64748B' }, grid: { color: '#F1F5F9' }, angleLines: { color: '#F1F5F9' } } },
+                                    plugins: { legend: { display: false } },
+                                    layout: { padding: 20 }
+                                }}
+                                plugins={[{
+                                    id: 'customOctagonLabels',
+                                    afterDatasetsDraw(chart) {
+                                        const { ctx, data } = chart;
+                                        ctx.save();
+                                        const meta = chart.getDatasetMeta(0);
+                                        if (!meta.hidden) {
+                                            meta.data.forEach((point, index) => {
+                                                const value = data.datasets[0].data[index] as number;
+                                                const { x, y } = point.tooltipPosition(true);
 
-                                            ctx.font = 'bold 11px sans-serif';
-                                            ctx.fillStyle = '#0F172A';
-                                            ctx.textAlign = 'center';
-                                            ctx.textBaseline = 'middle';
+                                                ctx.font = 'bold 11px sans-serif';
+                                                ctx.fillStyle = '#0F172A';
+                                                ctx.textAlign = 'center';
+                                                ctx.textBaseline = 'middle';
 
-                                            // Calculate offset to push label outward
-                                            const rScale = chart.scales.r as any;
-                                            const centerX = rScale.xCenter;
-                                            const centerY = rScale.yCenter;
-                                            const angle = Math.atan2((y || 0) - centerY, (x || 0) - centerX);
+                                                // Calculate offset to push label outward
+                                                const rScale = chart.scales.r as any;
+                                                const centerX = rScale.xCenter;
+                                                const centerY = rScale.yCenter;
+                                                const angle = Math.atan2((y || 0) - centerY, (x || 0) - centerX);
 
-                                            const labelX = (x || 0) + Math.cos(angle) * 15;
-                                            const labelY = (y || 0) + Math.sin(angle) * 15;
+                                                const labelX = (x || 0) + Math.cos(angle) * 15;
+                                                const labelY = (y || 0) + Math.sin(angle) * 15;
 
-                                            // Draw background for readability
-                                            const text = value.toString();
-                                            const textWidth = ctx.measureText(text).width;
+                                                // Draw background for readability
+                                                const text = value.toString();
+                                                const textWidth = ctx.measureText(text).width;
 
-                                            ctx.beginPath();
-                                            if (typeof ctx.roundRect === 'function') {
-                                                ctx.roundRect(labelX - textWidth / 2 - 4, labelY - 8, textWidth + 8, 16, 4);
-                                            } else {
-                                                ctx.rect(labelX - textWidth / 2 - 4, labelY - 8, textWidth + 8, 16);
-                                            }
-                                            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-                                            ctx.fill();
-                                            ctx.strokeStyle = '#e2e8f0';
-                                            ctx.stroke();
+                                                ctx.beginPath();
+                                                if (typeof ctx.roundRect === 'function') {
+                                                    ctx.roundRect(labelX - textWidth / 2 - 4, labelY - 8, textWidth + 8, 16, 4);
+                                                } else {
+                                                    ctx.rect(labelX - textWidth / 2 - 4, labelY - 8, textWidth + 8, 16);
+                                                }
+                                                ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                                                ctx.fill();
+                                                ctx.strokeStyle = '#e2e8f0';
+                                                ctx.stroke();
 
-                                            ctx.fillStyle = '#0F172A';
-                                            ctx.fillText(text, labelX, labelY);
-                                        });
+                                                ctx.fillStyle = '#0F172A';
+                                                ctx.fillText(text, labelX, labelY);
+                                            });
+                                        }
+                                        ctx.restore();
                                     }
-                                    ctx.restore();
-                                }
-                            }]}
-                        />
+                                }]}
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1269,6 +1269,7 @@ export default function PlayerReport() {
                 </div>
             </div>
         </div>
+    </div >
     );
 }
 
