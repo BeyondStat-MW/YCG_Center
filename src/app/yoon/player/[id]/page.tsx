@@ -1014,7 +1014,7 @@ export default function PlayerReport() {
                                 </div>
                             }
                         </div>
-                        <div className="h-[210px] w-full">
+                        <div className="h-[160px] w-full">
                             <Line
                                 data={{
                                     labels: bodyCompStats.height.map((h: any) => h.date),
@@ -1037,7 +1037,7 @@ export default function PlayerReport() {
                                 <span className="text-xs font-bold text-slate-800">{bodyCompStats.weight[bodyCompStats.weight.length - 1].value} kg</span>
                             }
                         </div>
-                        <div className="h-[210px] w-full">
+                        <div className="h-[160px] w-full">
                             <Line
                                 data={{
                                     labels: bodyCompStats.bodyComp.labels,
