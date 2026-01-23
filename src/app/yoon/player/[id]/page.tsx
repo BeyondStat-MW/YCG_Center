@@ -16,7 +16,7 @@ import {
     RadialLinearScale,
     Filler
 } from 'chart.js';
-import { Bar, Line, Radar } from 'react-chartjs-2';
+import { Bar, Line, Radar, Scatter } from 'react-chartjs-2';
 
 ChartJS.register(
     CategoryScale,
@@ -87,6 +87,7 @@ export default function PlayerReport() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [metricConfigs, setMetricConfigs] = useState<any[]>([]);
+    const [scatterData, setScatterData] = useState<any[]>([]);
 
     useEffect(() => {
         // Fetch metric configs
@@ -142,6 +143,17 @@ export default function PlayerReport() {
             fetchData();
         }
     }, [playerId]);
+
+    // Fetch Scatter Data for Profiling
+    useEffect(() => {
+        if (!profile?.level) return;
+        fetch(`/api/statistics/scatter?level=${profile.level}`)
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data)) setScatterData(data);
+            })
+            .catch(err => console.error(err));
+    }, [profile?.level]);
 
     const getConfiguredName = (defaultName: string, device: string, category: string, possibleKeys: string[]) => {
         if (!metricConfigs || !metricConfigs.length) return defaultName;
@@ -1053,6 +1065,204 @@ export default function PlayerReport() {
         );
     };
 
+    const renderElasticityProfiling = () => {
+        // Prepare Data
+        const latestTime = Math.max(...(measurements || []).map(m => new Date(m.recorded_at).getTime()));
+        const sjItem = strengthenStats.find(i => i.id === 'sj');
+        const cmjItem = strengthenStats.find(i => i.id === 'cmj');
+
+        let targetPoint: { x: number, y: number } | null = null;
+        if (sjItem && cmjItem) {
+            const lastSJ = sjItem.history.length > 0 ? sjItem.history[sjItem.history.length - 1] : null;
+            const lastCMJ = cmjItem.history.length > 0 ? cmjItem.history[cmjItem.history.length - 1] : null;
+            if (lastSJ && lastCMJ) {
+                targetPoint = { x: lastSJ.value, y: lastCMJ.value };
+            }
+        }
+
+        const peerPoints = scatterData
+            .filter(p => p.id !== profile?.id)
+            .map(p => ({ x: p.max_sj, y: p.max_cmj }))
+            .filter(p => p.x > 0 && p.y > 0);
+
+        return (
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-slate-200 transition-all print:border-slate-200 print:shadow-none mb-4 break-inside-avoid overflow-hidden">
+                <div className="flex justify-between items-start mb-4">
+                    <div>
+                        <h3 className="font-bold text-slate-700 tracking-tight">Elasticity Profiling (CMJ vs SJ)</h3>
+                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">ForceDecks</div>
+                    </div>
+                </div>
+                <div className="h-[300px] w-full">
+                    <Scatter
+                        data={{
+                            datasets: [
+                                {
+                                    label: 'Peers',
+                                    data: peerPoints,
+                                    backgroundColor: '#CBD5E1',
+                                    pointRadius: 4,
+                                    pointHoverRadius: 4,
+                                    order: 2
+                                },
+                                {
+                                    label: profile?.name || 'Player',
+                                    data: targetPoint ? [targetPoint] : [],
+                                    backgroundColor: (ctx: any) => {
+                                        if (!targetPoint) return '#3B82F6';
+                                        const eur = targetPoint.y / targetPoint.x;
+                                        if (eur < 1.1) return '#3B82F6'; // Elastic
+                                        if (eur >= 1.1 && eur <= 1.15) return '#10B981'; // Optimal
+                                        return '#EF4444'; // Strength
+                                    },
+                                    pointRadius: 8,
+                                    pointHoverRadius: 10,
+                                    pointBorderColor: '#fff',
+                                    pointBorderWidth: 2,
+                                    order: 1
+                                }
+                            ]
+                        }}
+                        options={{
+                            responsive: true, maintainAspectRatio: false,
+                            scales: {
+                                x: { title: { display: true, text: 'Squat Jump (cm)', font: { size: 10, weight: 'bold' } }, grid: { display: false } },
+                                y: { title: { display: true, text: 'CMJ (cm)', font: { size: 10, weight: 'bold' } }, grid: { color: '#F8FAFC' } }
+                            },
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: { callbacks: { label: (ctx: any) => `${ctx.dataset.label}: SJ ${ctx.raw.x}, CMJ ${ctx.raw.y}` } }
+                            }
+                        }}
+                        plugins={[{
+                            id: 'customLines_EUR',
+                            beforeDraw(chart) {
+                                const { ctx, scales: { x, y } } = chart;
+                                ctx.save();
+                                const drawRatioLine = (ratio: number, color: string, label: string) => {
+                                    const xMax = x.max;
+                                    const yTarget = xMax * ratio;
+                                    ctx.beginPath();
+                                    ctx.moveTo(x.getPixelForValue(0), y.getPixelForValue(0));
+                                    ctx.lineTo(x.getPixelForValue(xMax), y.getPixelForValue(yTarget));
+                                    ctx.strokeStyle = color;
+                                    ctx.lineWidth = 1;
+                                    ctx.setLineDash([5, 5]);
+                                    ctx.stroke();
+                                    ctx.font = 'bold 9px sans-serif';
+                                    ctx.fillStyle = color;
+                                    ctx.textAlign = 'right';
+                                    const labelX = x.getPixelForValue(xMax) - 5;
+                                    const labelY = y.getPixelForValue(yTarget) - 5;
+                                    if (labelY > chart.chartArea.top && labelY < chart.chartArea.bottom) ctx.fillText(label, labelX, labelY);
+                                };
+                                drawRatioLine(1.1, '#10B981', 'EUR 1.1');
+                                drawRatioLine(1.0, '#94A3B8', 'EUR 1.0');
+                                ctx.restore();
+                            }
+                        }]}
+                    />
+                </div>
+            </div>
+        );
+    };
+
+    const renderHipStrengthProfiling = () => {
+        const getLatestVal = (type: string) => {
+            const ms = measurements
+                .filter(m => m.test_type === 'ForceFrame' || (m.metrics && (typeof m.metrics === 'string' ? m.metrics : JSON.stringify(m.metrics)).includes(type)))
+                .sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime());
+            if (ms.length > 0) return extractMetricValue(ms[0], type);
+            return 0;
+        };
+
+        const lastAdd = getLatestVal('ff_add');
+        const lastAbd = getLatestVal('ff_abd');
+        let targetPoint: { x: number, y: number } | null = null;
+        if (lastAdd > 0 && lastAbd > 0) {
+            targetPoint = { x: lastAbd, y: lastAdd };
+        }
+
+        const peerPoints = scatterData
+            .filter(p => p.id !== profile?.id)
+            .map(p => ({ x: p.max_abd, y: p.max_add }))
+            .filter(p => p.x > 0 && p.y > 0);
+
+        return (
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-slate-200 transition-all print:border-slate-200 print:shadow-none mb-4 break-inside-avoid overflow-hidden">
+                <div className="flex justify-between items-start mb-4">
+                    <div>
+                        <h3 className="font-bold text-slate-700 tracking-tight">Adductor vs Abductor Strength</h3>
+                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">ForceFrame</div>
+                    </div>
+                </div>
+                <div className="h-[300px] w-full">
+                    <Scatter
+                        data={{
+                            datasets: [
+                                { label: 'Peers', data: peerPoints, backgroundColor: '#CBD5E1', pointRadius: 4, pointHoverRadius: 4, order: 2 },
+                                {
+                                    label: profile?.name || 'Player',
+                                    data: targetPoint ? [targetPoint] : [],
+                                    backgroundColor: (ctx: any) => {
+                                        if (!targetPoint) return '#3B82F6';
+                                        const ratio = targetPoint.y / targetPoint.x;
+                                        if (ratio < 0.9) return '#EF4444'; // Risk/Imbalance
+                                        if (ratio > 1.25) return '#F59E0B'; // High
+                                        return '#10B981'; // Optimal
+                                    },
+                                    pointRadius: 8,
+                                    pointHoverRadius: 10,
+                                    pointBorderColor: '#fff',
+                                    pointBorderWidth: 2,
+                                    order: 1
+                                }
+                            ]
+                        }}
+                        options={{
+                            responsive: true, maintainAspectRatio: false,
+                            scales: {
+                                x: { title: { display: true, text: 'Abductor (N)', font: { size: 10, weight: 'bold' } }, grid: { display: false } },
+                                y: { title: { display: true, text: 'Adductor (N)', font: { size: 10, weight: 'bold' } }, grid: { color: '#F8FAFC' } }
+                            },
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: { callbacks: { label: (ctx: any) => `${ctx.dataset.label}: Abd ${ctx.raw.x}, Add ${ctx.raw.y}` } }
+                            }
+                        }}
+                        plugins={[{
+                            id: 'customLines_Hip',
+                            beforeDraw(chart) {
+                                const { ctx, scales: { x, y } } = chart;
+                                ctx.save();
+                                const drawRatioLine = (ratio: number, color: string, label: string) => {
+                                    const xMax = x.max;
+                                    const yTarget = xMax * ratio;
+                                    ctx.beginPath();
+                                    ctx.moveTo(x.getPixelForValue(0), y.getPixelForValue(0));
+                                    ctx.lineTo(x.getPixelForValue(xMax), y.getPixelForValue(yTarget)); // Simple full width
+                                    ctx.strokeStyle = color;
+                                    ctx.lineWidth = 1;
+                                    ctx.setLineDash([5, 5]);
+                                    ctx.stroke();
+                                    ctx.font = 'bold 9px sans-serif';
+                                    ctx.fillStyle = color;
+                                    ctx.textAlign = 'right';
+                                    const labelX = x.getPixelForValue(xMax) - 5;
+                                    const labelY = y.getPixelForValue(yTarget) - 5;
+                                    if (labelY > chart.chartArea.top && labelY < chart.chartArea.bottom) ctx.fillText(label, labelX, labelY);
+                                };
+                                drawRatioLine(1.0, '#10B981', 'Ratio 1.0');
+                                drawRatioLine(0.9, '#EF4444', 'Ratio 0.9');
+                                ctx.restore();
+                            }
+                        }]}
+                    />
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div id="printable-area" className="w-full max-w-full space-y-6 pb-20 fade-in print:p-0 print:max-w-none">
             <style type="text/css" media="print">{`
@@ -1413,9 +1623,11 @@ export default function PlayerReport() {
                     </div>
                     {/* 1. EUR */}
                     {strengthenStats.filter(item => item.id === 'eur').map(renderChart)}
+                    {renderElasticityProfiling()}
 
                     {/* 2. Hip Ratio */}
                     {strengthenStats.filter(item => item.id === 'ff_ratio').map(renderChart)}
+                    {renderHipStrengthProfiling()}
                 </div>
             </div>
         </div>
