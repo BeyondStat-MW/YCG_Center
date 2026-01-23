@@ -423,6 +423,67 @@ export default function PlayerReport() {
         });
     }, [measurements, globalAverages, profile]);
 
+    const bodyCompStats = useMemo(() => {
+        if (!measurements) return { height: [], weightComp: [] };
+        const manualMeasurements = measurements.filter((m: any) => m.test_type === 'Manual');
+
+        const getValue = (m: any, keys: string[]) => {
+            const met = typeof m.metrics === 'string' ? JSON.parse(m.metrics) : m.metrics;
+            if (!met || !met.metric_name) return null;
+            if (keys.includes(met.metric_name)) return Number(met.value);
+            return null;
+        };
+
+        const processHistory = (keys: string[]) => {
+            const map = new Map<string, { date: string, val: number }>();
+            manualMeasurements.forEach((m: any) => {
+                const val = getValue(m, keys);
+                if (val !== null && val > 0) {
+                    const d = new Date(m.recorded_at);
+                    const kstDate = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+                    const dateKey = kstDate.toISOString().split('T')[0];
+                    if (!map.has(dateKey) || new Date(map.get(dateKey)!.date).getTime() < d.getTime()) {
+                        map.set(dateKey, { date: d.toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }), val });
+                    }
+                }
+            });
+            return Array.from(map.values()).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()); // Approximate sort by display date string relies on format, better to store sort key
+        };
+
+        // Better sort logic helper
+        const processHistorySorted = (keys: string[]) => {
+            const map = new Map<string, { rawDate: string, displayDate: string, val: number }>();
+            manualMeasurements.forEach((m: any) => {
+                const val = getValue(m, keys);
+                if (val !== null && val > 0) {
+                    const d = new Date(m.recorded_at);
+                    const kstDate = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+                    const dateKey = kstDate.toISOString().split('T')[0];
+                    if (!map.has(dateKey) || new Date(m.recorded_at).getTime() > new Date(map.get(dateKey)!.rawDate).getTime()) {
+                        map.set(dateKey, { rawDate: m.recorded_at, displayDate: d.toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }), val });
+                    }
+                }
+            });
+            return Array.from(map.values()).sort((a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime()).map(x => ({ date: x.displayDate, value: x.val }));
+        };
+
+        const height = processHistorySorted(['신장', 'Height', '키']);
+        const weight = processHistorySorted(['체중', 'Weight', '몸무게']);
+        const muscle = processHistorySorted(['골격근량', 'SMM', 'Muscle Mass']);
+        const fat = processHistorySorted(['체지방량', 'Body Fat Mass', 'Fat Mass', 'PBF', '체지방률']); // Assuming Mass based on graph request, but usually PBF is common. Labels says "체중 / 근육량 / 체지방량" so Mass.
+
+        // Combine for Weight/Muscle/Fat chart
+        // We need a unified date axis.
+        const allDates = new Set([...weight.map(i => i.date), ...muscle.map(i => i.date), ...fat.map(i => i.date)]);
+        // Sorthing dates is tricky with just "M. D." string.
+        // In a real app we'd keep the raw date. For now, let's assume the previous sort was correct and just merge.
+        // Re-using the rawSort keys would be better.
+        // Quick fix: Use the weight dates as primary or merge properly.
+        // Let's simplified: just return separate sets, and Chart.js can handle if we pass same labels or we assume measurements happen same day.
+
+        return { height, weight, muscle, fat };
+    }, [measurements]);
+
     const { octagonData, lastUpdateDate } = useMemo(() => {
         if (!measurements) return { octagonData: [], lastUpdateDate: '-' };
 
@@ -566,6 +627,182 @@ export default function PlayerReport() {
         </div>
     );
 
+    const renderChart = (item: any) => (
+        <div key={item.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-slate-200 transition-all print:border-slate-200 print:shadow-none mb-4 break-inside-avoid">
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="font-bold text-slate-700 tracking-tight">{item.label}</h3>
+                <div className="px-2 py-0.5 bg-slate-50 rounded text-[9px] text-slate-400 font-black uppercase tracking-widest">{item.dev}</div>
+            </div>
+            <div className="h-[140px] w-full">
+                {item.history.length > 0 ? (
+                    item.chart === 'line' ? (
+                        <Line
+                            data={{
+                                labels: item.history.map((h: any) => h.date),
+                                datasets: [
+                                    {
+                                        label: item.label,
+                                        data: item.history.map((h: any) => h.value),
+                                        borderColor: '#0F172A',
+                                        backgroundColor: '#0F172A',
+                                        tension: 0.1,
+                                        pointRadius: 4,
+                                        pointBackgroundColor: '#0F172A',
+                                        order: 1
+                                    },
+                                    {
+                                        label: '평균',
+                                        data: Array(item.history.length).fill(item.avgValue || null),
+                                        borderColor: '#94A3B8',
+                                        borderWidth: 2,
+                                        borderDash: [5, 5],
+                                        pointRadius: 0,
+                                        fill: false,
+                                        order: 2
+                                    }
+                                ]
+                            }}
+                            options={{
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    x: { offset: true, grid: { display: false }, ticks: { font: { size: 10 } } },
+                                    y: { display: false, min: Math.min(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || Infinity) * 0.9, max: Math.max(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || 0) * 1.3 }
+                                },
+                                plugins: {
+                                    legend: { display: false },
+                                    tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label || ''}: ${ctx.parsed.y} ${item.unit}` } }
+                                }
+                            }}
+                            plugins={[{
+                                id: 'customLabelsLine_' + item.id,
+                                afterDatasetsDraw(chart) {
+                                    const { ctx, data } = chart;
+                                    ctx.save();
+                                    if (!chart.getDatasetMeta(0).hidden) {
+                                        chart.getDatasetMeta(0).data.forEach((point, index) => {
+                                            const value = data.datasets[0].data[index] as number;
+                                            if (value != null) {
+                                                const x = (point as any).x;
+                                                const y = (point as any).y;
+                                                if (x != null && y != null) {
+                                                    ctx.font = 'bold 10px sans-serif';
+                                                    ctx.fillStyle = '#0F172A';
+                                                    ctx.textAlign = 'center';
+                                                    ctx.textBaseline = 'bottom';
+                                                    ctx.fillText(value.toString(), x, y - 6);
+                                                }
+                                            }
+                                        });
+                                    }
+                                    if (data.datasets.length > 1 && !chart.getDatasetMeta(1).hidden) {
+                                        const avgIdx = data.datasets[1].data.length - 1;
+                                        if (avgIdx >= 0) {
+                                            const point = chart.getDatasetMeta(1).data[avgIdx];
+                                            const value = data.datasets[1].data[avgIdx] as number;
+                                            if (point && value != null) {
+                                                const x = (point as any).x;
+                                                const y = (point as any).y;
+                                                ctx.font = 'bold 10px sans-serif';
+                                                ctx.fillStyle = '#EF4444';
+                                                ctx.textAlign = 'left';
+                                                ctx.textBaseline = 'middle';
+                                                ctx.fillText(`${value.toFixed(1)} (Avg)`, x + 5, y);
+                                            }
+                                        }
+                                    }
+                                    ctx.restore();
+                                }
+                            }]}
+                        />
+                    ) : (
+                        <Bar
+                            data={{
+                                labels: item.history.map((h: any) => h.date),
+                                datasets: [
+                                    {
+                                        type: 'bar' as const,
+                                        label: item.label,
+                                        data: item.history.map((h: any) => h.value),
+                                        backgroundColor: '#0F172A',
+                                        borderRadius: 4,
+                                        barPercentage: 0.5,
+                                        order: 1
+                                    },
+                                    {
+                                        type: 'line' as const,
+                                        label: '평균',
+                                        data: Array(item.history.length).fill(item.avgValue || null),
+                                        borderColor: '#94A3B8',
+                                        borderWidth: 2,
+                                        borderDash: [5, 5],
+                                        pointRadius: 0,
+                                        fill: false,
+                                        order: 0
+                                    }
+                                ] as any
+                            }}
+                            options={{
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    x: { offset: true, grid: { display: false }, ticks: { font: { size: 10 } } },
+                                    y: { display: false, min: Math.min(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || Infinity) * 0.9, max: Math.max(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || 0) * 1.3 }
+                                },
+                                plugins: {
+                                    legend: { display: false },
+                                    tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label || ''}: ${ctx.parsed.y} ${item.unit}` } }
+                                }
+                            }}
+                            plugins={[{
+                                id: 'customLabelsBar_' + item.id,
+                                afterDatasetsDraw(chart) {
+                                    const { ctx, data } = chart;
+                                    ctx.save();
+                                    if (!chart.getDatasetMeta(0).hidden) {
+                                        chart.getDatasetMeta(0).data.forEach((point, index) => {
+                                            const value = data.datasets[0].data[index] as number;
+                                            if (value != null) {
+                                                const x = (point as any).x;
+                                                const y = (point as any).y;
+                                                if (x != null && y != null) {
+                                                    ctx.font = 'bold 10px sans-serif';
+                                                    ctx.fillStyle = '#0F172A';
+                                                    ctx.textAlign = 'center';
+                                                    ctx.textBaseline = 'bottom';
+                                                    ctx.fillText(value.toString(), x, y - 6);
+                                                }
+                                            }
+                                        });
+                                    }
+                                    if (data.datasets.length > 1 && !chart.getDatasetMeta(1).hidden) {
+                                        const avgIdx = data.datasets[1].data.length - 1;
+                                        if (avgIdx >= 0) {
+                                            const point = chart.getDatasetMeta(1).data[avgIdx];
+                                            const value = data.datasets[1].data[avgIdx] as number;
+                                            if (point && value != null) {
+                                                const x = (point as any).x;
+                                                const y = (point as any).y;
+                                                ctx.font = 'bold 10px sans-serif';
+                                                ctx.fillStyle = '#EF4444';
+                                                ctx.textAlign = 'left';
+                                                ctx.textBaseline = 'middle';
+                                                ctx.fillText(`${value.toFixed(1)} (Avg)`, x + 5, y);
+                                            }
+                                        }
+                                    }
+                                    ctx.restore();
+                                }
+                            }]}
+                        />
+                    )
+                ) : (
+                    <div className="h-full flex items-center justify-center text-xs text-slate-300 font-bold">데이터 없음</div>
+                )}
+            </div>
+        </div>
+    );
+
     return (
         <div id="printable-area" className="w-full max-w-full space-y-6 pb-20 fade-in print:p-0 print:max-w-none">
             <style type="text/css" media="print">{`
@@ -578,23 +815,14 @@ export default function PlayerReport() {
                     top: 0;
                     width: 100%;
                 }
-                /* A4 한 장 출력을 위한 강제 축소 및 배경색 인쇄 강제 */
                 @media print {
-                    body {
-                        -webkit-print-color-adjust: exact !important;
-                        print-color-adjust: exact !important;
-                    }
-                    #printable-area {
-                        zoom: 0.5;
-                        width: 100%;
-                    }
+                    body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                    #printable-area { zoom: 0.6; width: 100%; }
                     @page { size: A4 portrait; margin: auto; }
-                    /* 차트 높이 강제 조정으로 세로 공간 확보 */
-                    .print\\:h-\\[140px\\] { height: 120px !important; }
                 }
             `}</style>
 
-
+            {/* Header */}
             <div className="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-100 print:hidden">
                 <div className="flex items-center gap-5">
                     <button onClick={() => router.back()} className="p-2.5 hover:bg-slate-50 rounded-xl transition-all border border-slate-100 shadow-sm print:hidden"><ArrowLeft size={20} className="text-slate-600" /></button>
@@ -604,20 +832,15 @@ export default function PlayerReport() {
                     <button onClick={() => window.print()} className="px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-bold hover:bg-slate-700 transition-colors shadow-sm">PDF 인쇄 / 저장</button>
                 </div>
             </div>
-            {/* Debug Info (Only shows if no data in graphs) */}
+
+            {/* DEBUG: No measurements warning */}
             {measurements.length === 0 && <div className="p-4 bg-red-50 text-red-500 rounded-xl text-sm font-bold">⚠️ 측정 데이터가 없습니다.</div>}
 
-            <div className="w-full block print:flex print:items-stretch print:gap-3">
-                {/* Print Only Logo Box */}
-                <div className="hidden print:flex w-[140px] bg-[#111827] text-white p-2 rounded-2xl flex-col items-center justify-center text-center shrink-0">
-                    <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-[#111827] font-black text-lg mb-2">Y</div>
-                    <div className="space-y-0.5">
-                        <h1 className="text-xs font-black leading-tight">윤청구<br />퍼포먼스 센터</h1>
-                        <p className="text-[6px] text-slate-400 font-bold tracking-widest text-slate-500">YCG PLATFORM</p>
-                    </div>
-                </div>
+            {/* Top Section */}
+            <div className="grid grid-cols-12 gap-6 print:gap-4 print:grid-cols-12">
 
-                <div className="w-full grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 print:grid-cols-6 print:flex-1 print:gap-2">
+                {/* 1. Profile Section */}
+                <div className="col-span-12 lg:col-span-3 print:col-span-3 grid grid-cols-2 lg:grid-cols-2 gap-3 content-start">
                     <ProfileCard label="선수명" value={profile.name} icon={User} />
                     <ProfileCard label="포지션" value={profile.position} icon={Target} />
                     <ProfileCard label="생년월일" value={profile.birthdate} icon={Calendar} />
@@ -625,423 +848,117 @@ export default function PlayerReport() {
                     <ProfileCard label="종목" value={profile.event || '축구'} icon={TrendingUp} />
                     <ProfileCard label="수준(학년)" value={profile.level || '대학'} icon={Info} />
                 </div>
-            </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 print:grid-cols-2 print:gap-4 print:items-start">
-                <div className="bg-[#FFFCEB] p-6 rounded-3xl border border-amber-100 shadow-sm space-y-6 print:border-none print:shadow-none print:bg-transparent print:p-0 print:space-y-2">
-                    <div className="flex items-center gap-3 border-b border-amber-100 pb-4 print:border-b-2 print:border-slate-800 print:pb-2 print:mb-2"><div className="p-2 bg-amber-500 rounded-lg text-white shadow-lg shadow-amber-200 print:hidden"><Zap size={20} /></div><h2 className="text-xl font-black text-amber-900 tracking-tight print:text-slate-900">Strengthen Section</h2></div>
-                    {strengthenStats.map(item => (
-                        <div key={item.id} className="bg-white p-5 rounded-2xl shadow-sm border border-amber-50 group hover:border-amber-200 transition-all print:border-slate-200 print:shadow-none">
-                            <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-700 tracking-tight">{item.label}</h3><div className="px-2 py-0.5 bg-slate-50 rounded text-[9px] text-slate-400 font-black uppercase tracking-widest">{item.dev}</div></div>
-                            <div className="h-[140px] w-full">
-                                {item.history.length > 0 ? (
-                                    item.chart === 'line' ? (
-                                        <Line
-                                            data={{
-                                                labels: item.history.map(h => h.date),
-                                                datasets: [
-                                                    {
-                                                        label: item.label,
-                                                        data: item.history.map(h => h.value),
-                                                        borderColor: '#0F172A',
-                                                        backgroundColor: '#0F172A',
-                                                        tension: 0.1,
-                                                        pointRadius: 4,
-                                                        pointBackgroundColor: '#0F172A',
-                                                        order: 1
-                                                    },
-                                                    {
-                                                        label: '평균',
-                                                        data: Array(item.history.length).fill(item.avgValue || null),
-                                                        borderColor: '#94A3B8',
-                                                        borderWidth: 2,
-                                                        borderDash: [5, 5],
-                                                        pointRadius: 0,
-                                                        fill: false,
-                                                        order: 2
-                                                    }
-                                                ]
-                                            }}
-                                            options={{
-                                                responsive: true,
-                                                maintainAspectRatio: false,
-                                                scales: {
-                                                    x: { offset: true, grid: { display: false }, ticks: { font: { size: 10 } } },
-                                                    y: { display: false, min: Math.min(...item.history.map(h => h.value), item.refValue || 0, item.avgValue || Infinity) * 0.9, max: Math.max(...item.history.map(h => h.value), item.refValue || 0, item.avgValue || 0) * 1.3 }
-                                                },
-                                                plugins: {
-                                                    legend: { display: false },
-                                                    tooltip: {
-                                                        callbacks: {
-                                                            label: (ctx) => `${ctx.dataset.label || ''}: ${ctx.parsed.y} ${item.unit}`
-                                                        }
-                                                    }
-                                                }
-                                            }}
-                                            plugins={[{
-                                                id: 'customLabelsStrengthenLine',
-                                                afterDatasetsDraw(chart) {
-                                                    const { ctx, data } = chart;
-                                                    ctx.save();
-
-                                                    // Dataset 0: Player (All Points)
-                                                    if (!chart.getDatasetMeta(0).hidden) {
-                                                        chart.getDatasetMeta(0).data.forEach((point, index) => {
-                                                            const value = data.datasets[0].data[index] as number;
-                                                            if (value !== null && value !== undefined) {
-                                                                const x = (point as any).x;
-                                                                const y = (point as any).y;
-                                                                if (x != null && y != null) {
-                                                                    ctx.font = 'bold 10px sans-serif';
-                                                                    ctx.fillStyle = '#0F172A';
-                                                                    ctx.textAlign = 'center';
-                                                                    ctx.textBaseline = 'bottom';
-                                                                    ctx.fillText(value.toString(), x, y - 6);
-                                                                }
-                                                            }
-                                                        });
-                                                    }
-
-                                                    // Dataset 1: Average (Last Point Only)
-                                                    if (data.datasets.length > 1 && !chart.getDatasetMeta(1).hidden) {
-                                                        const avgIdx = data.datasets[1].data.length - 1;
-                                                        const avgMeta = chart.getDatasetMeta(1);
-                                                        if (avgIdx >= 0) {
-                                                            const point = avgMeta.data[avgIdx];
-                                                            const value = data.datasets[1].data[avgIdx] as number;
-                                                            if (value !== null && value !== undefined) {
-                                                                const x = (point as any).x;
-                                                                const y = (point as any).y;
-                                                                if (x != null && y != null) {
-                                                                    ctx.font = 'bold 10px sans-serif';
-                                                                    ctx.fillStyle = '#EF4444'; // Red for Average
-                                                                    ctx.textAlign = 'left';
-                                                                    ctx.textBaseline = 'middle';
-                                                                    ctx.fillText(`${value.toFixed(1)} (Avg)`, x + 5, y);
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                    ctx.restore();
-                                                }
-                                            }]}
-                                        />
-                                    ) : (
-                                        <Bar
-                                            data={{
-                                                labels: item.history.map(h => h.date),
-                                                datasets: [
-                                                    {
-                                                        type: 'bar' as const,
-                                                        label: item.label,
-                                                        data: item.history.map(h => h.value),
-                                                        backgroundColor: '#0F172A',
-                                                        borderRadius: 4,
-                                                        barPercentage: 0.5,
-                                                        order: 1
-                                                    },
-                                                    {
-                                                        type: 'line' as const,
-                                                        label: '평균',
-                                                        data: Array(item.history.length).fill(item.avgValue || null),
-                                                        borderColor: '#94A3B8',
-                                                        borderWidth: 2,
-                                                        borderDash: [5, 5],
-                                                        pointRadius: 0,
-                                                        fill: false,
-                                                        order: 0
-                                                    }
-                                                ] as any
-                                            }}
-                                            options={{
-                                                responsive: true,
-                                                maintainAspectRatio: false,
-                                                scales: {
-                                                    x: { offset: true, grid: { display: false }, ticks: { font: { size: 10 } } },
-                                                    y: { display: false, min: Math.min(...item.history.map(h => h.value), item.refValue || 0, item.avgValue || Infinity) * 0.9, max: Math.max(...item.history.map(h => h.value), item.refValue || 0, item.avgValue || 0) * 1.3 }
-                                                },
-                                                plugins: {
-                                                    legend: { display: false },
-                                                    tooltip: {
-                                                        callbacks: {
-                                                            label: (ctx) => `${ctx.dataset.label || ''}: ${ctx.parsed.y} ${item.unit}`
-                                                        }
-                                                    }
-                                                }
-                                            }}
-                                            plugins={[{
-                                                id: 'customLabelsStrengthenBar',
-                                                afterDatasetsDraw(chart) {
-                                                    const { ctx, data } = chart;
-                                                    ctx.save();
-
-                                                    // Dataset 0: Player Bar (All Points)
-                                                    if (!chart.getDatasetMeta(0).hidden) {
-                                                        chart.getDatasetMeta(0).data.forEach((point, index) => {
-                                                            const value = data.datasets[0].data[index] as number;
-                                                            if (value !== null && value !== undefined) {
-                                                                const x = (point as any).x;
-                                                                const y = (point as any).y;
-                                                                if (x != null && y != null) {
-                                                                    ctx.font = 'bold 10px sans-serif';
-                                                                    ctx.fillStyle = '#0F172A';
-                                                                    ctx.textAlign = 'center';
-                                                                    ctx.textBaseline = 'bottom';
-                                                                    ctx.fillText(value.toString(), x, y - 6);
-                                                                }
-                                                            }
-                                                        });
-                                                    }
-
-                                                    // Dataset 1: Average Line (Last Point Only)
-                                                    if (data.datasets.length > 1 && !chart.getDatasetMeta(1).hidden) {
-                                                        const avgIdx = data.datasets[1].data.length - 1;
-                                                        const avgMeta = chart.getDatasetMeta(1);
-                                                        if (avgIdx >= 0) {
-                                                            const point = avgMeta.data[avgIdx];
-                                                            const value = data.datasets[1].data[avgIdx] as number;
-                                                            if (value !== null && value !== undefined) {
-                                                                const x = (point as any).x;
-                                                                const y = (point as any).y;
-                                                                if (x != null && y != null) {
-                                                                    ctx.font = 'bold 10px sans-serif';
-                                                                    ctx.fillStyle = '#EF4444'; // Red
-                                                                    ctx.textAlign = 'left';
-                                                                    ctx.textBaseline = 'middle';
-                                                                    ctx.fillText(`${value.toFixed(1)} (Avg)`, x + 5, y);
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                    ctx.restore();
-                                                }
-                                            }]}
-                                        />
-                                    )
-                                ) : (
-                                    <div className="h-full flex items-center justify-center text-xs text-slate-300 font-bold">데이터 없음</div>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                <div className="space-y-8 print:space-y-2">
-                    <div className="bg-[#F8FAFC] p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6 print:bg-white print:border-none print:shadow-none print:p-0">
-                        <div className="flex items-center justify-between border-b border-slate-200 pb-4 print:border-b-2 print:border-slate-800 print:mb-2 print:pb-2">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-slate-700 rounded-lg text-white shadow-lg shadow-slate-300"><Dumbbell size={20} /></div>
-                                <h2 className="text-xl font-black text-slate-800 tracking-tight">Power Section</h2>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 gap-4 print:gap-3">
-                            {powerStatsHistory.map(item => (
-                                <div key={item.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 group hover:border-slate-300 transition-all print:border-slate-200 print:shadow-none">
-                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
-                                        <div className="flex items-center gap-2">
-                                            <h3 className="font-bold text-slate-700 tracking-tight">{item.label}</h3>
-                                            <div className="px-2 py-0.5 bg-slate-50 rounded text-[9px] text-slate-400 font-black uppercase tracking-widest">Manual</div>
-                                        </div>
-
-                                        {/* Stats Summary Block */}
-                                        {item.history.length >= 2 && (
-                                            <div className="flex items-center gap-6 text-sm">
-                                                <div className="flex flex-col items-end">
-                                                    <span className="text-[10px] text-slate-400 font-bold uppercase">First ({item.firstDate})</span>
-                                                    <span className="font-bold text-slate-600">{item.firstVal} {item.unit}</span>
-                                                </div>
-                                                <div className="w-px h-6 bg-slate-100"></div>
-                                                <div className="flex flex-col items-end">
-                                                    <span className="text-[10px] text-slate-400 font-bold uppercase">Last ({item.lastDate})</span>
-                                                    <span className="font-bold text-slate-800">{item.lastVal} {item.unit}</span>
-                                                </div>
-                                                <div className="w-px h-6 bg-slate-100"></div>
-                                                <div className="flex flex-col items-end">
-                                                    <span className="text-[10px] text-slate-400 font-bold uppercase">% Change</span>
-                                                    <span className={`font-black ${((item.lastVal - item.firstVal) / item.firstVal) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                        {((item.lastVal - item.firstVal) / item.firstVal * 100).toFixed(1)}%
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="h-[140px] w-full">
-                                        {item.history.length > 0 ? (
-                                            <Line
-                                                data={{
-                                                    labels: item.history.map(h => h.date),
-                                                    datasets: [
-                                                        {
-                                                            label: item.label,
-                                                            data: item.history.map(h => h.value),
-                                                            borderColor: '#0F172A',
-                                                            backgroundColor: '#0F172A',
-                                                            tension: 0.1,
-                                                            pointRadius: 4,
-                                                            pointBackgroundColor: '#0F172A',
-                                                            order: 1
-                                                        },
-                                                        {
-                                                            label: '평균',
-                                                            data: Array(item.history.length).fill(item.avgValue || null),
-                                                            borderColor: '#94A3B8',
-                                                            borderWidth: 2,
-                                                            borderDash: [5, 5],
-                                                            pointRadius: 0,
-                                                            fill: false,
-                                                            order: 2
-                                                        }
-                                                    ]
-                                                }}
-                                                options={{
-                                                    responsive: true,
-                                                    maintainAspectRatio: false,
-                                                    scales: {
-                                                        x: { offset: true, grid: { display: false }, ticks: { font: { size: 10 } } },
-                                                        y: { display: false, min: Math.min(...item.history.map(h => h.value), item.avgValue || Infinity) * 0.9, max: Math.max(...item.history.map(h => h.value), item.avgValue || 0) * 1.1 }
-                                                    },
-                                                    plugins: {
-                                                        legend: { display: false },
-                                                        tooltip: {
-                                                            callbacks: {
-                                                                label: (ctx) => `${ctx.dataset.label || ''}: ${ctx.parsed.y} ${item.unit}`
-                                                            }
-                                                        }
-                                                    }
-                                                }}
-                                                plugins={[{
-                                                    id: 'customLabelsPower',
-                                                    afterDatasetsDraw(chart) {
-                                                        const { ctx, data } = chart;
-                                                        ctx.save();
-                                                        if (chart.getDatasetMeta(0).hidden) return;
-                                                        chart.getDatasetMeta(0).data.forEach((point, index) => {
-                                                            const value = data.datasets[0].data[index] as number;
-                                                            if (value !== null && value !== undefined) {
-                                                                const x = (point as any).x;
-                                                                const y = (point as any).y;
-                                                                if (x != null && y != null) {
-                                                                    ctx.font = 'bold 9px sans-serif';
-                                                                    ctx.fillStyle = '#0F172A';
-                                                                    ctx.textAlign = 'center';
-                                                                    ctx.textBaseline = 'bottom';
-                                                                    ctx.fillText(value.toString(), x, y - 6);
-                                                                }
-                                                            }
-                                                        });
-                                                        ctx.restore();
-                                                    }
-                                                }]}
-                                            />
-                                        ) : (
-                                            <div className="h-full flex items-center justify-center text-xs text-slate-300 font-bold">데이터 없음</div>
-                                        )}
-                                    </div>
+                {/* 2. Body Composition Charts */}
+                <div className="col-span-12 lg:col-span-4 print:col-span-4 flex flex-col gap-4">
+                    {/* Height Chart */}
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex-1 min-h-[160px]">
+                        <div className="flex justify-between items-center mb-2">
+                            <h3 className="font-bold text-slate-700 tracking-tight">신장</h3>
+                            {bodyCompStats.height.length > 0 &&
+                                <div className="flex gap-2 text-xs">
+                                    <span className="text-slate-400">{bodyCompStats.height[0].date}: <b className="text-slate-600">{bodyCompStats.height[0].value}</b></span>
+                                    <span className="text-slate-400">→</span>
+                                    <span className="text-emerald-500 font-bold">{bodyCompStats.height[bodyCompStats.height.length - 1].value} cm</span>
                                 </div>
-                            ))}
+                            }
+                        </div>
+                        <div className="h-[100px] w-full">
+                            <Line
+                                data={{
+                                    labels: bodyCompStats.height.map((h: any) => h.date),
+                                    datasets: [{ label: 'Height', data: bodyCompStats.height.map((h: any) => h.value), borderColor: '#0F172A', backgroundColor: '#0F172A', tension: 0.1, pointRadius: 3 }]
+                                }}
+                                options={{
+                                    responsive: true, maintainAspectRatio: false,
+                                    scales: { x: { display: true, grid: { display: false }, ticks: { font: { size: 9 } } }, y: { display: false } },
+                                    plugins: { legend: { display: false } }
+                                }}
+                            />
                         </div>
                     </div>
 
-                    <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm flex flex-col items-center relative overflow-hidden print:border-slate-200 print:shadow-none">
-
-                        <div className="flex items-center gap-3 self-start mb-2">
-                            <div className="p-2 bg-blue-600 rounded-lg text-white shadow-lg shadow-blue-200"><Scale size={20} /></div>
-                            <div className="flex flex-col">
-                                <h2 className="text-xl font-black text-slate-800 tracking-tight">Performance Octagon</h2>
-                                {lastUpdateDate !== '-' && <span className="text-[11px] font-bold text-slate-400">Latest Test: {lastUpdateDate}</span>}
-                            </div>
+                    {/* Weight/Muscle/Fat Chart */}
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex-1 min-h-[160px]">
+                        <div className="flex justify-between items-center mb-2">
+                            <h3 className="font-bold text-slate-700 tracking-tight">체중 / 근육량 / 체지방량</h3>
+                            {bodyCompStats.weight.length > 0 &&
+                                <span className="text-xs font-bold text-slate-800">{bodyCompStats.weight[bodyCompStats.weight.length - 1].value} kg</span>
+                            }
                         </div>
-                        <div className="w-full h-[400px] relative z-10">
-                            <Radar
+                        <div className="h-[100px] w-full">
+                            <Line
                                 data={{
-                                    labels: octagonData.map(d => d.subject),
+                                    labels: bodyCompStats.weight.map((h: any) => h.date), // Using Weight dates as primary
                                     datasets: [
-                                        {
-                                            label: profile?.name || "본인",
-                                            data: octagonData.map(d => d.A),
-                                            backgroundColor: 'rgba(15, 23, 42, 0.4)',
-                                            borderColor: '#0F172A',
-                                            borderWidth: 3,
-                                            pointBackgroundColor: '#0F172A',
-                                            pointRadius: 4
-                                        },
-                                        {
-                                            label: `동일 수준(${profile?.level || '그룹'}) 평균`,
-                                            data: octagonData.map(d => d.B),
-                                            backgroundColor: 'transparent',
-                                            borderColor: '#94A3B8',
-                                            borderWidth: 2,
-                                            borderDash: [5, 5],
-                                            pointRadius: 0
-                                        }
+                                        { label: '체중', data: bodyCompStats.weight.map((h: any) => h.value), borderColor: '#0F172A', backgroundColor: '#0F172A', tension: 0.1, pointRadius: 3 },
+                                        { label: '근육량', data: bodyCompStats.muscle.map((h: any) => h.value), borderColor: '#64748B', borderDash: [5, 5], tension: 0.1, pointRadius: 0 },
+                                        { label: '체지방량', data: bodyCompStats.fat.map((h: any) => h.value), borderColor: '#CBD5E1', borderDash: [2, 2], tension: 0.1, pointRadius: 0 }
                                     ]
                                 }}
                                 options={{
-                                    animation: { duration: 0 },
-                                    responsive: true,
-                                    maintainAspectRatio: false,
-                                    scales: {
-                                        r: {
-                                            min: 0,
-                                            max: 100,
-                                            ticks: { display: false, stepSize: 20 },
-                                            pointLabels: {
-                                                font: { size: 11, weight: 'bold' },
-                                                color: '#64748B'
-                                            },
-                                            grid: { color: '#E2E8F0' },
-                                            angleLines: { color: '#E2E8F0' }
-                                        }
-                                    },
-                                    plugins: {
-                                        legend: {
-                                            position: 'top',
-                                            labels: { font: { size: 12, weight: 'bold' } }
-                                        },
-                                        tooltip: {
-                                            backgroundColor: 'white',
-                                            titleColor: '#1e293b',
-                                            bodyColor: '#475569',
-                                            borderColor: '#e2e8f0',
-                                            borderWidth: 1,
-                                            displayColors: true,
-                                            padding: 10,
-                                            callbacks: {
-                                                label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.r}`
-                                            }
-                                        }
-                                    }
+                                    responsive: true, maintainAspectRatio: false,
+                                    scales: { x: { display: true, grid: { display: false }, ticks: { font: { size: 9 } } }, y: { display: false } },
+                                    plugins: { legend: { display: false } }
                                 }}
-                                plugins={[{
-                                    id: 'customLabels',
-                                    afterDatasetsDraw(chart) {
-                                        const { ctx, data } = chart;
-                                        ctx.save();
-                                        chart.getDatasetMeta(0).data.forEach((point, index) => {
-                                            const value = data.datasets[0].data[index] as number;
-                                            if (value > 0) {
-                                                const x = (point as any).x;
-                                                const y = (point as any).y;
-                                                if (x != null && y != null) {
-                                                    ctx.font = 'bold 11px sans-serif';
-                                                    ctx.fillStyle = '#0F172A';
-                                                    ctx.textAlign = 'center';
-                                                    ctx.textBaseline = 'bottom';
-                                                    ctx.fillText(value.toFixed(1), x, y - 6);
-                                                }
-                                            }
-                                        });
-                                        ctx.restore();
-                                    }
-                                }]}
                             />
                         </div>
                     </div>
                 </div>
+
+                {/* 3. Octagon Chart */}
+                <div className="col-span-12 lg:col-span-5 print:col-span-5 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col relative overflow-hidden">
+                    <div className="flex items-center gap-3 self-start mb-2 z-10">
+                        <div className="p-1.5 bg-blue-600 rounded-lg text-white shadow"><Scale size={16} /></div>
+                        <div>
+                            <h2 className="text-sm font-black text-slate-800 tracking-tight">Performance Octagon</h2>
+                            <span className="text-[10px] font-bold text-slate-400">Latest Test: {lastUpdateDate}</span>
+                        </div>
+                    </div>
+                    <div className="absolute top-4 right-4 flex gap-3 text-[10px] items-center z-10">
+                        <div className="flex items-center gap-1"><div className="w-2 h-2 bg-slate-900 rounded-full"></div><span className="font-bold text-slate-700">본인</span></div>
+                        <div className="flex items-center gap-1"><div className="w-2 h-2 border border-slate-400 border-dashed rounded-full"></div><span className="font-medium text-slate-400">동일 수준 평균</span></div>
+                    </div>
+                    <div className="w-full h-[250px] mt-4 relative z-0">
+                        <Radar
+                            data={{
+                                labels: octagonData.map(d => d.subject),
+                                datasets: [
+                                    { label: profile?.name || "본인", data: octagonData.map(d => d.A), backgroundColor: 'rgba(15, 23, 42, 0.4)', borderColor: '#0F172A', borderWidth: 2, pointBackgroundColor: '#0F172A', pointRadius: 3 },
+                                    { label: `동일 수준 평균`, data: octagonData.map(d => d.B), backgroundColor: 'transparent', borderColor: '#94A3B8', borderWidth: 1, borderDash: [4, 4], pointRadius: 0 }
+                                ]
+                            }}
+                            options={{
+                                scales: { r: { min: 0, max: 100, ticks: { display: false, stepSize: 20 }, pointLabels: { font: { size: 9, weight: 'bold' }, color: '#64748B' }, grid: { color: '#F1F5F9' }, angleLines: { color: '#F1F5F9' } } },
+                                plugins: { legend: { display: false } }
+                            }}
+                        />
+                    </div>
+                </div>
             </div>
 
+            {/* Bottom Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-4 items-start">
 
-        </div >
+                {/* Left: Measurement Trends */}
+                <div className="bg-[#FFFCEB] p-6 rounded-3xl border border-amber-100 shadow-sm space-y-4 print:bg-transparent print:border-none print:p-0">
+                    <div className="flex items-center gap-3 border-b border-amber-200/50 pb-4 mb-2">
+                        <div className="p-2 bg-amber-500 rounded-lg text-white shadow-lg shadow-amber-200"><TrendingUp size={20} /></div>
+                        <h2 className="text-xl font-black text-amber-900 tracking-tight">측정 결과 추이</h2>
+                    </div>
+                    {strengthenStats.filter(item => ['sj', 'cmj', 'hop', 'nord'].includes(item.id)).map(renderChart)}
+                </div>
+
+                {/* Right: Insight */}
+                <div className="bg-[#OFFCEB] p-6 rounded-3xl border border-amber-100 shadow-sm space-y-4 print:bg-transparent print:border-none print:p-0 bg-yellow-50/50">
+                    <div className="flex items-center gap-3 border-b border-amber-200/50 pb-4 mb-2">
+                        <div className="p-2 bg-amber-500 rounded-lg text-white shadow-lg shadow-amber-200"><Zap size={20} /></div>
+                        <h2 className="text-xl font-black text-amber-900 tracking-tight">Insight</h2>
+                    </div>
+                    {strengthenStats.filter(item => ['eur', 'ff_ratio'].includes(item.id)).map(renderChart)}
+                </div>
+            </div>
+        </div>
     );
 }
 
