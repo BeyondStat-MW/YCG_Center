@@ -452,8 +452,8 @@ export default function PlayerReport() {
 
         const heightRaw = processHistoryRaw(['신장', 'Height', '키']);
         const weightRaw = processHistoryRaw(['체중', 'Weight', '몸무게']);
-        const muscleRaw = processHistoryRaw(['골격근량', 'SMM', 'Muscle Mass']);
-        const fatRaw = processHistoryRaw(['체지방량', 'Body Fat Mass', 'Fat Mass', 'PBF', '체지방률']);
+        const muscleRaw = processHistoryRaw(['골격근량', 'SMM', 'Muscle Mass', '골격근', '근육량', '근육']);
+        const fatRaw = processHistoryRaw(['체지방량', 'Body Fat Mass', 'Fat Mass', 'PBF', '체지방률', '체지방', 'Fat']);
 
         // Individual arrays for independent display (e.g. latest value)
         const height = heightRaw.map(x => ({ date: x.displayDate, value: x.val }));
