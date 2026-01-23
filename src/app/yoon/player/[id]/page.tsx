@@ -424,34 +424,17 @@ export default function PlayerReport() {
     }, [measurements, globalAverages, profile]);
 
     const bodyCompStats = useMemo(() => {
-        if (!measurements) return { height: [], weight: [], muscle: [], fat: [] };
+        if (!measurements) return { height: [], weight: [], muscle: [], fat: [], bodyComp: { labels: [], weight: [], muscle: [], fat: [] } };
         const manualMeasurements = measurements.filter((m: any) => m.test_type === 'Manual');
 
         const getValue = (m: any, keys: string[]) => {
             const met = typeof m.metrics === 'string' ? JSON.parse(m.metrics) : m.metrics;
             if (!met || !met.metric_name) return null;
-            if (keys.includes(met.metric_name)) return Number(met.value);
+            if (keys.some(k => k.toLowerCase() === met.metric_name.toLowerCase())) return Number(met.value);
             return null;
         };
 
-        const processHistory = (keys: string[]) => {
-            const map = new Map<string, { date: string, val: number }>();
-            manualMeasurements.forEach((m: any) => {
-                const val = getValue(m, keys);
-                if (val !== null && val > 0) {
-                    const d = new Date(m.recorded_at);
-                    const kstDate = new Date(d.getTime() + 9 * 60 * 60 * 1000);
-                    const dateKey = kstDate.toISOString().split('T')[0];
-                    if (!map.has(dateKey) || new Date(map.get(dateKey)!.date).getTime() < d.getTime()) {
-                        map.set(dateKey, { date: d.toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }), val });
-                    }
-                }
-            });
-            return Array.from(map.values()).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()); // Approximate sort by display date string relies on format, better to store sort key
-        };
-
-        // Better sort logic helper
-        const processHistorySorted = (keys: string[]) => {
+        const processHistoryRaw = (keys: string[]) => {
             const map = new Map<string, { rawDate: string, displayDate: string, val: number }>();
             manualMeasurements.forEach((m: any) => {
                 const val = getValue(m, keys);
@@ -464,24 +447,51 @@ export default function PlayerReport() {
                     }
                 }
             });
-            return Array.from(map.values()).sort((a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime()).map(x => ({ date: x.displayDate, value: x.val }));
+            return Array.from(map.values()).sort((a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime());
         };
 
-        const height = processHistorySorted(['신장', 'Height', '키']);
-        const weight = processHistorySorted(['체중', 'Weight', '몸무게']);
-        const muscle = processHistorySorted(['골격근량', 'SMM', 'Muscle Mass']);
-        const fat = processHistorySorted(['체지방량', 'Body Fat Mass', 'Fat Mass', 'PBF', '체지방률']); // Assuming Mass based on graph request, but usually PBF is common. Labels says "체중 / 근육량 / 체지방량" so Mass.
+        const heightRaw = processHistoryRaw(['신장', 'Height', '키']);
+        const weightRaw = processHistoryRaw(['체중', 'Weight', '몸무게']);
+        const muscleRaw = processHistoryRaw(['골격근량', 'SMM', 'Muscle Mass']);
+        const fatRaw = processHistoryRaw(['체지방량', 'Body Fat Mass', 'Fat Mass', 'PBF', '체지방률']);
 
-        // Combine for Weight/Muscle/Fat chart
-        // We need a unified date axis.
-        const allDates = new Set([...weight.map(i => i.date), ...muscle.map(i => i.date), ...fat.map(i => i.date)]);
-        // Sorthing dates is tricky with just "M. D." string.
-        // In a real app we'd keep the raw date. For now, let's assume the previous sort was correct and just merge.
-        // Re-using the rawSort keys would be better.
-        // Quick fix: Use the weight dates as primary or merge properly.
-        // Let's simplified: just return separate sets, and Chart.js can handle if we pass same labels or we assume measurements happen same day.
+        // Individual arrays for independent display (e.g. latest value)
+        const height = heightRaw.map(x => ({ date: x.displayDate, value: x.val }));
+        const weight = weightRaw.map(x => ({ date: x.displayDate, value: x.val }));
+        const muscle = muscleRaw.map(x => ({ date: x.displayDate, value: x.val }));
+        const fat = fatRaw.map(x => ({ date: x.displayDate, value: x.val }));
 
-        return { height, weight, muscle, fat };
+        // Combined for Weight/Muscle/Fat chart - Align by date
+        const compMap = new Map<string, { rawDate: string, displayDate: string, w: number | null, m: number | null, f: number | null }>();
+
+        const addToMap = (arr: typeof weightRaw, type: 'w' | 'm' | 'f') => {
+            arr.forEach(item => {
+                const d = new Date(item.rawDate);
+                const kstDate = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+                const dateKey = kstDate.toISOString().split('T')[0];
+
+                if (!compMap.has(dateKey)) {
+                    compMap.set(dateKey, { rawDate: item.rawDate, displayDate: item.displayDate, w: null, m: null, f: null });
+                }
+                const entry = compMap.get(dateKey)!;
+                entry[type] = item.val;
+            });
+        };
+
+        addToMap(weightRaw, 'w');
+        addToMap(muscleRaw, 'm');
+        addToMap(fatRaw, 'f');
+
+        const sortedComp = Array.from(compMap.values()).sort((a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime());
+
+        const bodyComp = {
+            labels: sortedComp.map(x => x.displayDate),
+            weight: sortedComp.map(x => x.w),
+            muscle: sortedComp.map(x => x.m),
+            fat: sortedComp.map(x => x.f)
+        };
+
+        return { height, weight, muscle, fat, bodyComp };
     }, [measurements]);
 
     const { octagonData, lastUpdateDate } = useMemo(() => {
@@ -633,7 +643,7 @@ export default function PlayerReport() {
                 <h3 className="font-bold text-slate-700 tracking-tight">{item.label}</h3>
                 <div className="px-2 py-0.5 bg-slate-50 rounded text-[9px] text-slate-400 font-black uppercase tracking-widest">{item.dev}</div>
             </div>
-            <div className="h-[140px] w-full">
+            <div className="h-[280px] w-full">
                 {item.history.length > 0 ? (
                     item.chart === 'line' ? (
                         <Line
@@ -849,7 +859,7 @@ export default function PlayerReport() {
                     <h3 className="font-bold text-slate-700 tracking-tight">Squat Jump vs CMJ Comparison</h3>
                     <div className="px-2 py-0.5 bg-slate-50 rounded text-[9px] text-slate-400 font-black uppercase tracking-widest">ForceDecks</div>
                 </div>
-                <div className="h-[140px] w-full">
+                <div className="h-[280px] w-full">
                     <Line
                         data={{
                             labels: sortedDates,
@@ -1004,7 +1014,7 @@ export default function PlayerReport() {
                                 </div>
                             }
                         </div>
-                        <div className="h-[100px] w-full">
+                        <div className="h-[280px] w-full">
                             <Line
                                 data={{
                                     labels: bodyCompStats.height.map((h: any) => h.date),
@@ -1027,14 +1037,14 @@ export default function PlayerReport() {
                                 <span className="text-xs font-bold text-slate-800">{bodyCompStats.weight[bodyCompStats.weight.length - 1].value} kg</span>
                             }
                         </div>
-                        <div className="h-[100px] w-full">
+                        <div className="h-[280px] w-full">
                             <Line
                                 data={{
-                                    labels: bodyCompStats.weight.map((h: any) => h.date), // Using Weight dates as primary
+                                    labels: bodyCompStats.bodyComp.labels,
                                     datasets: [
-                                        { label: '체중', data: bodyCompStats.weight.map((h: any) => h.value), borderColor: '#0F172A', backgroundColor: '#0F172A', tension: 0.1, pointRadius: 3 },
-                                        { label: '근육량', data: bodyCompStats.muscle.map((h: any) => h.value), borderColor: '#64748B', borderDash: [5, 5], tension: 0.1, pointRadius: 0 },
-                                        { label: '체지방량', data: bodyCompStats.fat.map((h: any) => h.value), borderColor: '#CBD5E1', borderDash: [2, 2], tension: 0.1, pointRadius: 0 }
+                                        { label: '체중', data: bodyCompStats.bodyComp.weight, borderColor: '#0F172A', backgroundColor: '#0F172A', tension: 0.1, pointRadius: 3, spanGaps: true },
+                                        { label: '근육량', data: bodyCompStats.bodyComp.muscle, borderColor: '#64748B', borderDash: [5, 5], tension: 0.1, pointRadius: 0, spanGaps: true },
+                                        { label: '체지방량', data: bodyCompStats.bodyComp.fat, borderColor: '#CBD5E1', borderDash: [2, 2], tension: 0.1, pointRadius: 0, spanGaps: true }
                                     ]
                                 }}
                                 options={{
@@ -1060,7 +1070,7 @@ export default function PlayerReport() {
                         <div className="flex items-center gap-1"><div className="w-2 h-2 bg-slate-900 rounded-full"></div><span className="font-bold text-slate-700">본인</span></div>
                         <div className="flex items-center gap-1"><div className="w-2 h-2 border border-slate-400 border-dashed rounded-full"></div><span className="font-medium text-slate-400">동일 수준 평균</span></div>
                     </div>
-                    <div className="w-full h-[250px] mt-4 relative z-0">
+                    <div className="w-full h-[500px] mt-4 relative z-0">
                         <Radar
                             data={{
                                 labels: octagonData.map(d => d.subject),
