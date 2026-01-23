@@ -462,75 +462,95 @@ const ValdCard = ({ card }: { card: any }) => {
     }
 
     return (
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-lg transition-all h-full group relative">
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-lg transition-all h-full group relative flex flex-col overflow-hidden">
             <div className="absolute top-4 right-4 text-[10px] font-black text-slate-300 bg-slate-50 px-2 py-1 rounded-md">{dateStr}</div>
-            <div className="flex items-start gap-4 mb-2">
-                <div className="p-3 bg-slate-50 rounded-lg text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors"><Icon size={24} /></div>
+
+            {/* Header */}
+            <div className="flex items-start gap-3 mb-4">
+                <div className="p-2.5 bg-slate-50 rounded-lg text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors">
+                    <Icon size={20} />
+                </div>
                 <div className="pr-12">
-                    <h3 className="font-bold text-slate-900 leading-tight">{card.title}</h3>
-                    <p className="text-xs text-slate-500 font-medium">{card.subtitle}</p>
+                    <h3 className="font-bold text-slate-900 leading-tight text-sm">{card.title}</h3>
+                    <p className="text-[11px] text-slate-500 font-medium">{card.subtitle}</p>
                 </div>
             </div>
 
-            <div className="flex flex-row items-end gap-2 h-40">
-                <div className="flex flex-col justify-center gap-4 min-w-[30%]">
-                    <div>
-                        <span className="text-xs font-bold text-blue-500 block mb-1">Left</span>
-                        <div className="flex items-baseline gap-1">
-                            <span className="text-xl font-black text-slate-800">{card.left.toFixed(1)}</span>
-                            <span className="text-[10px] text-slate-400">{card.unit}</span>
-                        </div>
-                        {card.history.length > 1 && (
-                            <div className={`text-[9px] font-bold flex items-center gap-1 ${leftPctChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                {leftPctChange >= 0 ? '↑' : '↓'} {Math.abs(leftPctChange).toFixed(1)}%
-                            </div>
-                        )}
+            {/* Stats Row (Above Chart) */}
+            <div className="grid grid-cols-2 gap-4 mb-4 px-1">
+                <div className="relative pl-3 border-l-2 border-blue-500">
+                    <span className="text-[10px] font-bold text-blue-500 block mb-0.5 uppercase tracking-wider">Left</span>
+                    <div className="flex items-baseline gap-1">
+                        <span className="text-xl font-black text-slate-800">{card.left.toFixed(1)}</span>
+                        <span className="text-[10px] text-slate-400">{card.unit}</span>
                     </div>
-                    <div>
-                        <span className="text-xs font-bold text-orange-500 block mb-1">Right</span>
-                        <div className="flex items-baseline gap-1">
-                            <span className="text-xl font-black text-slate-800">{card.right.toFixed(0)}</span>
-                            <span className="text-[10px] text-slate-400">{card.unit}</span>
+                    {card.history.length > 1 && (
+                        <div className={`text-[9px] font-bold flex items-center gap-1 ${leftPctChange >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {leftPctChange >= 0 ? '↑' : '↓'} {Math.abs(leftPctChange).toFixed(1)}%
                         </div>
-                        {card.history.length > 1 && (
-                            <div className={`text-[9px] font-bold flex items-center gap-1 ${rightPctChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                {rightPctChange >= 0 ? '↑' : '↓'} {Math.abs(rightPctChange).toFixed(1)}%
-                            </div>
-                        )}
-                    </div>
+                    )}
                 </div>
+                <div className="relative pl-3 border-l-2 border-orange-500">
+                    <span className="text-[10px] font-bold text-orange-500 block mb-0.5 uppercase tracking-wider">Right</span>
+                    <div className="flex items-baseline gap-1">
+                        <span className="text-xl font-black text-slate-800">{card.right.toFixed(1)}</span>
+                        <span className="text-[10px] text-slate-400">{card.unit}</span>
+                    </div>
+                    {card.history.length > 1 && (
+                        <div className={`text-[9px] font-bold flex items-center gap-1 ${rightPctChange >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {rightPctChange >= 0 ? '↑' : '↓'} {Math.abs(rightPctChange).toFixed(1)}%
+                        </div>
+                    )}
+                </div>
+            </div>
 
-                <div className="flex-1 h-full w-full pl-2">
-                    <Line
-                        data={{
-                            labels: card.history.map((h: any) => h.date),
-                            datasets: [
-                                { label: 'Left', data: card.history.map((h: any) => h.left), borderColor: '#3B82F6', borderWidth: 2, pointRadius: 2, pointBackgroundColor: '#3B82F6', tension: 0.3 },
-                                { label: 'Right', data: card.history.map((h: any) => h.right), borderColor: '#F97316', borderWidth: 2, pointRadius: 2, pointBackgroundColor: '#F97316', tension: 0.3 }
-                            ]
-                        }}
-                        options={{
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            layout: { padding: 10 },
-                            plugins: {
-                                legend: { display: false },
-                                tooltip: {
-                                    callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y} ${card.unit}` }
-                                }
-                            },
-                            scales: {
-                                x: { display: false },
-                                y: { display: false, min, max }
+            {/* Chart Row (Full Width) */}
+            <div className="flex-1 w-full min-h-[160px] relative">
+                <Line
+                    data={{
+                        labels: card.history.map((h: any) => h.date),
+                        datasets: [
+                            { label: 'Left', data: card.history.map((h: any) => h.left), borderColor: '#3B82F6', borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#3B82F6', tension: 0.3 },
+                            { label: 'Right', data: card.history.map((h: any) => h.right), borderColor: '#F97316', borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#F97316', tension: 0.3 }
+                        ]
+                    }}
+                    options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        layout: { padding: { top: 10, bottom: 10, left: 0, right: 0 } },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                                callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y} ${card.unit}` }
                             }
-                        }}
-                    />
-                </div>
+                        },
+                        scales: {
+                            x: { display: false },
+                            y: { display: false, min: min * 0.9, max: max * 1.1 }
+                        }
+                    }}
+                />
             </div>
 
-            <div className="mt-3 flex items-center justify-center border-t border-slate-50 pt-3">
-                <div className={`text-xs font-black ${asym > 10 ? 'text-red-500' : 'text-slate-400'}`}>
-                    Asym. {asymPercent}% {isLeftDom ? 'Left' : 'Right'}
+            {/* Asym Bar Graph (Footer) */}
+            <div className="mt-4 flex flex-col gap-2">
+                <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
+                    <span>Left Dom.</span>
+                    <span className={`${asym > 10 ? 'text-rose-500' : 'text-slate-600'}`}>Asym: {asymPercent}%</span>
+                    <span>Right Dom.</span>
+                </div>
+                <div className="relative h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                    {/* Center Marker */}
+                    <div className="absolute left-1/2 top-0 bottom-0 w-[2px] bg-slate-300 -ml-[1px] z-10"></div>
+
+                    {/* Bar */}
+                    <div
+                        className={`absolute top-0 bottom-0 transition-all duration-500 ${isLeftDom ? 'bg-blue-500 right-1/2 rounded-l-full' : 'bg-orange-500 left-1/2 rounded-r-full'}`}
+                        style={{ width: `${Math.min(asym, 50)}%` }}
+                    ></div>
                 </div>
             </div>
         </div>
