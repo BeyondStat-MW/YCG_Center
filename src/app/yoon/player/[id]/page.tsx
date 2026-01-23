@@ -915,7 +915,7 @@ export default function PlayerReport() {
                             maintainAspectRatio: false,
                             scales: {
                                 x: { offset: true, grid: { display: false }, ticks: { font: { size: 10 } } },
-                                y: { display: false, min: 0 }
+                                y: { display: false, min: Math.min(...sjData.filter(d => d !== null) as number[], ...cmjData.filter(d => d !== null) as number[], sjAvg || Infinity, cmjAvg || Infinity) * 0.95, max: Math.max(...sjData.filter(d => d !== null) as number[], ...cmjData.filter(d => d !== null) as number[], sjAvg || 0, cmjAvg || 0) * 1.05 }
                             },
                             plugins: {
                                 legend: { display: true, position: 'top', align: 'end', labels: { boxWidth: 8, font: { size: 9, weight: 'bold' } } },
@@ -1022,7 +1022,10 @@ export default function PlayerReport() {
                                 }}
                                 options={{
                                     responsive: true, maintainAspectRatio: false,
-                                    scales: { x: { display: true, grid: { display: false }, ticks: { font: { size: 9 } } }, y: { display: false } },
+                                    scales: {
+                                        x: { display: true, grid: { display: false }, ticks: { font: { size: 9 } } },
+                                        y: { display: false, min: Math.min(...bodyCompStats.height.map((h: any) => h.value)) * 0.95, max: Math.max(...bodyCompStats.height.map((h: any) => h.value)) * 1.05 }
+                                    },
                                     plugins: { legend: { display: false } }
                                 }}
                             />
@@ -1049,7 +1052,22 @@ export default function PlayerReport() {
                                 }}
                                 options={{
                                     responsive: true, maintainAspectRatio: false,
-                                    scales: { x: { display: true, grid: { display: false }, ticks: { font: { size: 9 } } }, y: { display: false } },
+                                    scales: {
+                                        x: { display: true, grid: { display: false }, ticks: { font: { size: 9 } } },
+                                        y: {
+                                            display: false,
+                                            min: Math.min(
+                                                ...bodyCompStats.bodyComp.weight.filter((v: number | null) => v !== null) as number[],
+                                                ...bodyCompStats.bodyComp.muscle.filter((v: number | null) => v !== null) as number[],
+                                                ...bodyCompStats.bodyComp.fat.filter((v: number | null) => v !== null) as number[]
+                                            ) * 0.95,
+                                            max: Math.max(
+                                                ...bodyCompStats.bodyComp.weight.filter((v: number | null) => v !== null) as number[],
+                                                ...bodyCompStats.bodyComp.muscle.filter((v: number | null) => v !== null) as number[],
+                                                ...bodyCompStats.bodyComp.fat.filter((v: number | null) => v !== null) as number[]
+                                            ) * 1.05
+                                        }
+                                    },
                                     plugins: { legend: { display: false } }
                                 }}
                             />
