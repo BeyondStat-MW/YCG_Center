@@ -369,8 +369,8 @@ const ValdCard = ({ card }: { card: any }) => {
     if (card.type === 'trend') {
         const lastVal = card.data;
         const vals = card.history.map((h: any) => h.value);
-        const min = Math.min(...vals) * 0.9;
-        const max = Math.max(...vals) * 1.1;
+        const min = Math.min(...vals) * 0.95;
+        const max = Math.max(...vals) * 1.05;
 
         const maxValInHistory = Math.max(...vals);
 
@@ -450,8 +450,8 @@ const ValdCard = ({ card }: { card: any }) => {
     const asymPercent = asym.toFixed(1);
 
     const vals = card.history.flatMap((h: any) => [h.left, h.right]);
-    const min = Math.min(...vals) * 0.9;
-    const max = Math.max(...vals) * 1.1;
+    const min = Math.min(...vals) * 0.95;
+    const max = Math.max(...vals) * 1.05;
 
     let leftPctChange = 0;
     let rightPctChange = 0;

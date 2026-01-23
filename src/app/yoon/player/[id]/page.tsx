@@ -991,13 +991,64 @@ export default function PlayerReport() {
             <div className="grid grid-cols-12 gap-6 print:gap-4 print:grid-cols-12">
 
                 {/* 1. Profile Section */}
-                <div className="col-span-12 lg:col-span-3 print:col-span-3 grid grid-cols-2 lg:grid-cols-2 gap-3 content-start">
-                    <ProfileCard label="선수명" value={profile.name} icon={User} />
-                    <ProfileCard label="포지션" value={profile.position} icon={Target} />
-                    <ProfileCard label="생년월일" value={profile.birthdate} icon={Calendar} />
-                    <ProfileCard label="소속팀" value={profile.team || 'YU-PC'} icon={Activity} />
-                    <ProfileCard label="종목" value={profile.event || '축구'} icon={TrendingUp} />
-                    <ProfileCard label="수준(학년)" value={profile.level || '대학'} icon={Info} />
+                {/* 1. Profile Section */}
+                <div className="col-span-12 lg:col-span-3 print:col-span-3 bg-slate-900 rounded-2xl p-6 shadow-lg shadow-slate-200/50 relative overflow-hidden flex flex-col justify-between min-h-[400px]">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500 rounded-full blur-[80px] opacity-20 transform translate-x-20 -translate-y-20"></div>
+                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500 rounded-full blur-[60px] opacity-10 transform -translate-x-10 translate-y-10"></div>
+
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-8">
+                            <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/10 text-white">
+                                <User size={24} />
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-black text-white tracking-tight">Player Profile</h2>
+                                <p className="text-xs font-medium text-slate-400">선수 기본 정보</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-5">
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Name</span>
+                                <span className="text-2xl font-black text-white tracking-tight">{profile.name}</span>
+                            </div>
+                            <div className="w-full h-px bg-white/10"></div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Position</span>
+                                    <span className="text-base font-bold text-slate-200">{profile.position || '-'}</span>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Team</span>
+                                    <span className="text-base font-bold text-slate-200">{profile.team || 'YU-PC'}</span>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Birth</span>
+                                    <span className="text-base font-bold text-slate-200">{profile.birthdate || '-'}</span>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Level</span>
+                                    <span className="text-base font-bold text-slate-200">{profile.level || '대학'}</span>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Event</span>
+                                <span className="text-base font-bold text-slate-200">{profile.event || '축구'}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="relative z-10 mt-6 pt-6 border-t border-white/10">
+                        <div className="flex justify-between items-center text-[10px] text-slate-400">
+                            <span>Last Update</span>
+                            <span className="font-mono">{new Date().toLocaleDateString()}</span>
+                        </div>
+                    </div>
                 </div>
 
                 {/* 2. Body Composition Charts */}
@@ -1099,8 +1150,56 @@ export default function PlayerReport() {
                             }}
                             options={{
                                 scales: { r: { min: 0, max: 100, ticks: { display: false, stepSize: 20 }, pointLabels: { font: { size: 9, weight: 'bold' }, color: '#64748B' }, grid: { color: '#F1F5F9' }, angleLines: { color: '#F1F5F9' } } },
-                                plugins: { legend: { display: false } }
+                                plugins: { legend: { display: false } },
+                                layout: { padding: 20 }
                             }}
+                            plugins={[{
+                                id: 'customOctagonLabels',
+                                afterDatasetsDraw(chart) {
+                                    const { ctx, data } = chart;
+                                    ctx.save();
+                                    const meta = chart.getDatasetMeta(0);
+                                    if (!meta.hidden) {
+                                        meta.data.forEach((point, index) => {
+                                            const value = data.datasets[0].data[index] as number;
+                                            const { x, y } = point.tooltipPosition(true);
+
+                                            ctx.font = 'bold 11px sans-serif';
+                                            ctx.fillStyle = '#0F172A';
+                                            ctx.textAlign = 'center';
+                                            ctx.textBaseline = 'middle';
+
+                                            // Calculate offset to push label outward
+                                            const rScale = chart.scales.r as any;
+                                            const centerX = rScale.xCenter;
+                                            const centerY = rScale.yCenter;
+                                            const angle = Math.atan2((y || 0) - centerY, (x || 0) - centerX);
+
+                                            const labelX = (x || 0) + Math.cos(angle) * 15;
+                                            const labelY = (y || 0) + Math.sin(angle) * 15;
+
+                                            // Draw background for readability
+                                            const text = value.toString();
+                                            const textWidth = ctx.measureText(text).width;
+
+                                            ctx.beginPath();
+                                            if (typeof ctx.roundRect === 'function') {
+                                                ctx.roundRect(labelX - textWidth / 2 - 4, labelY - 8, textWidth + 8, 16, 4);
+                                            } else {
+                                                ctx.rect(labelX - textWidth / 2 - 4, labelY - 8, textWidth + 8, 16);
+                                            }
+                                            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                                            ctx.fill();
+                                            ctx.strokeStyle = '#e2e8f0';
+                                            ctx.stroke();
+
+                                            ctx.fillStyle = '#0F172A';
+                                            ctx.fillText(text, labelX, labelY);
+                                        });
+                                    }
+                                    ctx.restore();
+                                }
+                            }]}
                         />
                     </div>
                 </div>
