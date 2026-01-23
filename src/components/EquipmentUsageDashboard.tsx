@@ -138,8 +138,8 @@ export default function EquipmentUsageDashboard({ measurements }: EquipmentUsage
 
         return sortedDates.map(isoDate => {
             const dateObj = new Date(isoDate);
-            // Display format: MM.DD
-            const displayDate = `${(dateObj.getMonth() + 1).toString().padStart(2, '0')}.${dateObj.getDate().toString().padStart(2, '0')}`;
+            // Display format: YY.MM.DD
+            const displayDate = `${dateObj.getFullYear().toString().slice(2)}.${(dateObj.getMonth() + 1).toString().padStart(2, '0')}.${dateObj.getDate().toString().padStart(2, '0')}`;
 
             const entry: any = { date: displayDate, _sortKey: isoDate }; // sorted by array order anyway
             allDevices.forEach(dev => {
