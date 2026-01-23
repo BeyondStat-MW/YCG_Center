@@ -1150,7 +1150,8 @@ export default function PlayerReport() {
             </div>
 
             {/* 3. Octagon Chart */}
-            <div className="col-span-12 lg:col-span-5 print:col-span-5 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-center relative overflow-hidden h-[400px]">
+            {/* 3. Octagon Chart */}
+            <div className="col-span-12 lg:col-span-5 print:col-span-5 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col relative overflow-hidden h-[400px]">
                 <div className="flex items-center gap-3 self-start mb-2 z-10">
                     <div className="p-1.5 bg-blue-600 rounded-lg text-white shadow"><Scale size={16} /></div>
                     <div>
@@ -1163,7 +1164,7 @@ export default function PlayerReport() {
                     <div className="flex items-center gap-1"><div className="w-2 h-2 border border-slate-400 border-dashed rounded-full"></div><span className="font-medium text-slate-400">동일 수준 평균</span></div>
                 </div>
                 <div className="w-full flex-1 flex items-center justify-center relative z-0">
-                    <div className="w-full h-[375px]">
+                    <div className="w-[320px] h-[320px]">
                         <Radar
                             data={{
                                 labels: octagonData.map(d => d.subject),
@@ -1173,6 +1174,8 @@ export default function PlayerReport() {
                                 ]
                             }}
                             options={{
+                                responsive: true,
+                                maintainAspectRatio: false,
                                 scales: { r: { min: 0, max: 100, ticks: { display: false, stepSize: 20 }, pointLabels: { font: { size: 9, weight: 'bold' }, color: '#64748B' }, grid: { color: '#F1F5F9' }, angleLines: { color: '#F1F5F9' } } },
                                 plugins: { legend: { display: false } },
                                 layout: { padding: 20 }
