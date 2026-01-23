@@ -637,183 +637,204 @@ export default function PlayerReport() {
         </div>
     );
 
-    const renderChart = (item: any) => (
-        <div key={item.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-slate-200 transition-all print:border-slate-200 print:shadow-none mb-4 break-inside-avoid">
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="font-bold text-slate-700 tracking-tight">{item.label}</h3>
-                <div className="px-2 py-0.5 bg-slate-50 rounded text-[9px] text-slate-400 font-black uppercase tracking-widest">{item.dev}</div>
-            </div>
-            <div className="h-[210px] w-full">
-                {item.history.length > 0 ? (
-                    item.chart === 'line' ? (
-                        <Line
-                            data={{
-                                labels: item.history.map((h: any) => h.date),
-                                datasets: [
-                                    {
-                                        label: item.label,
-                                        data: item.history.map((h: any) => h.value),
-                                        borderColor: '#0F172A',
-                                        backgroundColor: '#0F172A',
-                                        tension: 0.1,
-                                        pointRadius: 4,
-                                        pointBackgroundColor: '#0F172A',
-                                        order: 1
+    const renderChart = (item: any) => {
+        const first = item.history.length > 0 ? item.history[0] : null;
+        const last = item.history.length > 0 ? item.history[item.history.length - 1] : null;
+        const change = (first && last) ? last.value - first.value : 0;
+        const pct = (first && first.value > 0) ? ((change / first.value) * 100).toFixed(1) : '0.0';
+
+        return (
+            <div key={item.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-slate-200 transition-all print:border-slate-200 print:shadow-none mb-4 break-inside-avoid overflow-hidden">
+                <div className="flex justify-between items-start mb-4">
+                    <div>
+                        <h3 className="font-bold text-slate-700 tracking-tight">{item.label}</h3>
+                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{item.dev}</div>
+                    </div>
+                    {first && last && (
+                        <div className="text-right">
+                            <div className="text-xs font-bold text-slate-600">
+                                <span className="text-slate-400">{first.value}</span>
+                                <span className="mx-1 text-slate-300">→</span>
+                                {last.value} <span className="text-[10px] text-slate-400">{item.unit}</span>
+                            </div>
+                            <div className={`text-[10px] font-bold ${change >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                {change >= 0 ? '+' : ''}{change.toFixed(1)} ({change >= 0 ? '+' : ''}{pct}%)
+                            </div>
+                        </div>
+                    )}
+                </div>
+                <div className="h-[210px] w-full">
+                    {item.history.length > 0 ? (
+                        item.chart === 'line' ? (
+                            <Line
+                                data={{
+                                    labels: item.history.map((h: any) => h.date),
+                                    datasets: [
+                                        {
+                                            label: item.label,
+                                            data: item.history.map((h: any) => h.value),
+                                            borderColor: '#0F172A',
+                                            backgroundColor: '#0F172A',
+                                            tension: 0.1,
+                                            pointRadius: 4,
+                                            pointBackgroundColor: '#0F172A',
+                                            order: 1
+                                        },
+                                        {
+                                            label: '평균',
+                                            data: Array(item.history.length).fill(item.avgValue || null),
+                                            borderColor: '#94A3B8',
+                                            borderWidth: 2,
+                                            borderDash: [5, 5],
+                                            pointRadius: 0,
+                                            fill: false,
+                                            order: 2
+                                        }
+                                    ]
+                                }}
+                                options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    layout: { padding: { right: 10, left: 0 } },
+                                    scales: {
+                                        x: { offset: true, grid: { display: false }, ticks: { font: { size: 10 } } },
+                                        y: { display: false, min: Math.min(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || Infinity) * 0.95, max: Math.max(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || 0) * 1.05 }
                                     },
-                                    {
-                                        label: '평균',
-                                        data: Array(item.history.length).fill(item.avgValue || null),
-                                        borderColor: '#94A3B8',
-                                        borderWidth: 2,
-                                        borderDash: [5, 5],
-                                        pointRadius: 0,
-                                        fill: false,
-                                        order: 2
+                                    plugins: {
+                                        legend: { display: false },
+                                        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label || ''}: ${ctx.parsed.y} ${item.unit}` } }
                                     }
-                                ]
-                            }}
-                            options={{
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                layout: { padding: { top: 20, bottom: 10, left: 10, right: 10 } },
-                                scales: {
-                                    x: { offset: true, grid: { display: false }, ticks: { font: { size: 10 } } },
-                                    y: { display: false, min: Math.min(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || Infinity) * 0.95, max: Math.max(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || 0) * 1.05 }
-                                },
-                                plugins: {
-                                    legend: { display: false },
-                                    tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label || ''}: ${ctx.parsed.y} ${item.unit}` } }
-                                }
-                            }}
-                            plugins={[{
-                                id: 'customLabelsLine_' + item.id,
-                                afterDatasetsDraw(chart) {
-                                    const { ctx, data } = chart;
-                                    ctx.save();
-                                    if (!chart.getDatasetMeta(0).hidden) {
-                                        chart.getDatasetMeta(0).data.forEach((point, index) => {
-                                            const value = data.datasets[0].data[index] as number;
-                                            if (value != null) {
-                                                const x = (point as any).x;
-                                                const y = (point as any).y;
-                                                if (x != null && y != null) {
+                                }}
+                                plugins={[{
+                                    id: 'customLabelsLine_' + item.id,
+                                    afterDatasetsDraw(chart) {
+                                        const { ctx, data } = chart;
+                                        ctx.save();
+                                        if (!chart.getDatasetMeta(0).hidden) {
+                                            chart.getDatasetMeta(0).data.forEach((point, index) => {
+                                                const value = data.datasets[0].data[index] as number;
+                                                if (value != null) {
+                                                    const x = (point as any).x;
+                                                    const y = (point as any).y;
+                                                    if (x != null && y != null) {
+                                                        ctx.font = 'bold 10px sans-serif';
+                                                        ctx.fillStyle = '#0F172A';
+                                                        ctx.textAlign = 'center';
+                                                        ctx.textBaseline = 'bottom';
+                                                        ctx.fillText(value.toString(), x, y - 6);
+                                                    }
+                                                }
+                                            });
+                                        }
+                                        if (data.datasets.length > 1 && !chart.getDatasetMeta(1).hidden) {
+                                            const avgIdx = data.datasets[1].data.length - 1;
+                                            if (avgIdx >= 0) {
+                                                const point = chart.getDatasetMeta(1).data[avgIdx];
+                                                const value = data.datasets[1].data[avgIdx] as number;
+                                                if (point && value != null) {
+                                                    const x = (point as any).x;
+                                                    const y = (point as any).y;
                                                     ctx.font = 'bold 10px sans-serif';
-                                                    ctx.fillStyle = '#0F172A';
-                                                    ctx.textAlign = 'center';
-                                                    ctx.textBaseline = 'bottom';
-                                                    ctx.fillText(value.toString(), x, y - 6);
+                                                    ctx.fillStyle = '#EF4444';
+                                                    ctx.textAlign = 'left';
+                                                    ctx.textBaseline = 'middle';
+                                                    ctx.fillText(`${value.toFixed(1)} (Avg)`, x + 5, y);
                                                 }
                                             }
-                                        });
+                                        }
+                                        ctx.restore();
                                     }
-                                    if (data.datasets.length > 1 && !chart.getDatasetMeta(1).hidden) {
-                                        const avgIdx = data.datasets[1].data.length - 1;
-                                        if (avgIdx >= 0) {
-                                            const point = chart.getDatasetMeta(1).data[avgIdx];
-                                            const value = data.datasets[1].data[avgIdx] as number;
-                                            if (point && value != null) {
-                                                const x = (point as any).x;
-                                                const y = (point as any).y;
-                                                ctx.font = 'bold 10px sans-serif';
-                                                ctx.fillStyle = '#EF4444';
-                                                ctx.textAlign = 'left';
-                                                ctx.textBaseline = 'middle';
-                                                ctx.fillText(`${value.toFixed(1)} (Avg)`, x + 5, y);
+                                }]}
+                            />
+                        ) : (
+                            <Bar
+                                data={{
+                                    labels: item.history.map((h: any) => h.date),
+                                    datasets: [
+                                        {
+                                            type: 'bar' as const,
+                                            label: item.label,
+                                            data: item.history.map((h: any) => h.value),
+                                            backgroundColor: '#0F172A',
+                                            borderRadius: 4,
+                                            barPercentage: 0.5,
+                                            order: 1
+                                        },
+                                        {
+                                            type: 'line' as const,
+                                            label: '평균',
+                                            data: Array(item.history.length).fill(item.avgValue || null),
+                                            borderColor: '#94A3B8',
+                                            borderWidth: 2,
+                                            borderDash: [5, 5],
+                                            pointRadius: 0,
+                                            fill: false,
+                                            order: 0
+                                        }
+                                    ] as any
+                                }}
+                                options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    layout: { padding: { right: 10, left: 0 } },
+                                    scales: {
+                                        x: { offset: true, grid: { display: false }, ticks: { font: { size: 10 } } },
+                                        y: { display: false, min: Math.min(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || Infinity) * 0.95, max: Math.max(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || 0) * 1.05 }
+                                    },
+                                    plugins: {
+                                        legend: { display: false },
+                                        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label || ''}: ${ctx.parsed.y} ${item.unit}` } }
+                                    }
+                                }}
+                                plugins={[{
+                                    id: 'customLabelsBar_' + item.id,
+                                    afterDatasetsDraw(chart) {
+                                        const { ctx, data } = chart;
+                                        ctx.save();
+                                        if (!chart.getDatasetMeta(0).hidden) {
+                                            chart.getDatasetMeta(0).data.forEach((point, index) => {
+                                                const value = data.datasets[0].data[index] as number;
+                                                if (value != null) {
+                                                    const x = (point as any).x;
+                                                    const y = (point as any).y;
+                                                    if (x != null && y != null) {
+                                                        ctx.font = 'bold 10px sans-serif';
+                                                        ctx.fillStyle = '#0F172A';
+                                                        ctx.textAlign = 'center';
+                                                        ctx.textBaseline = 'bottom';
+                                                        ctx.fillText(value.toString(), x, y - 6);
+                                                    }
+                                                }
+                                            });
+                                        }
+                                        if (data.datasets.length > 1 && !chart.getDatasetMeta(1).hidden) {
+                                            const avgIdx = data.datasets[1].data.length - 1;
+                                            if (avgIdx >= 0) {
+                                                const point = chart.getDatasetMeta(1).data[avgIdx];
+                                                const value = data.datasets[1].data[avgIdx] as number;
+                                                if (point && value != null) {
+                                                    const x = (point as any).x;
+                                                    const y = (point as any).y;
+                                                    ctx.font = 'bold 10px sans-serif';
+                                                    ctx.fillStyle = '#EF4444';
+                                                    ctx.textAlign = 'left';
+                                                    ctx.textBaseline = 'middle';
+                                                    ctx.fillText(`${value.toFixed(1)} (Avg)`, x + 5, y);
+                                                }
                                             }
                                         }
+                                        ctx.restore();
                                     }
-                                    ctx.restore();
-                                }
-                            }]}
-                        />
+                                }]}
+                            />
+                        )
                     ) : (
-                        <Bar
-                            data={{
-                                labels: item.history.map((h: any) => h.date),
-                                datasets: [
-                                    {
-                                        type: 'bar' as const,
-                                        label: item.label,
-                                        data: item.history.map((h: any) => h.value),
-                                        backgroundColor: '#0F172A',
-                                        borderRadius: 4,
-                                        barPercentage: 0.5,
-                                        order: 1
-                                    },
-                                    {
-                                        type: 'line' as const,
-                                        label: '평균',
-                                        data: Array(item.history.length).fill(item.avgValue || null),
-                                        borderColor: '#94A3B8',
-                                        borderWidth: 2,
-                                        borderDash: [5, 5],
-                                        pointRadius: 0,
-                                        fill: false,
-                                        order: 0
-                                    }
-                                ] as any
-                            }}
-                            options={{
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                layout: { padding: { top: 20, bottom: 10, left: 10, right: 10 } },
-                                scales: {
-                                    x: { offset: true, grid: { display: false }, ticks: { font: { size: 10 } } },
-                                    y: { display: false, min: Math.min(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || Infinity) * 0.95, max: Math.max(...item.history.map((h: any) => h.value), item.refValue || 0, item.avgValue || 0) * 1.05 }
-                                },
-                                plugins: {
-                                    legend: { display: false },
-                                    tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label || ''}: ${ctx.parsed.y} ${item.unit}` } }
-                                }
-                            }}
-                            plugins={[{
-                                id: 'customLabelsBar_' + item.id,
-                                afterDatasetsDraw(chart) {
-                                    const { ctx, data } = chart;
-                                    ctx.save();
-                                    if (!chart.getDatasetMeta(0).hidden) {
-                                        chart.getDatasetMeta(0).data.forEach((point, index) => {
-                                            const value = data.datasets[0].data[index] as number;
-                                            if (value != null) {
-                                                const x = (point as any).x;
-                                                const y = (point as any).y;
-                                                if (x != null && y != null) {
-                                                    ctx.font = 'bold 10px sans-serif';
-                                                    ctx.fillStyle = '#0F172A';
-                                                    ctx.textAlign = 'center';
-                                                    ctx.textBaseline = 'bottom';
-                                                    ctx.fillText(value.toString(), x, y - 6);
-                                                }
-                                            }
-                                        });
-                                    }
-                                    if (data.datasets.length > 1 && !chart.getDatasetMeta(1).hidden) {
-                                        const avgIdx = data.datasets[1].data.length - 1;
-                                        if (avgIdx >= 0) {
-                                            const point = chart.getDatasetMeta(1).data[avgIdx];
-                                            const value = data.datasets[1].data[avgIdx] as number;
-                                            if (point && value != null) {
-                                                const x = (point as any).x;
-                                                const y = (point as any).y;
-                                                ctx.font = 'bold 10px sans-serif';
-                                                ctx.fillStyle = '#EF4444';
-                                                ctx.textAlign = 'left';
-                                                ctx.textBaseline = 'middle';
-                                                ctx.fillText(`${value.toFixed(1)} (Avg)`, x + 5, y);
-                                            }
-                                        }
-                                    }
-                                    ctx.restore();
-                                }
-                            }]}
-                        />
-                    )
-                ) : (
-                    <div className="h-full flex items-center justify-center text-xs text-slate-300 font-bold">데이터 없음</div>
-                )}
+                        <div className="h-full flex items-center justify-center text-xs text-slate-300 font-bold">데이터 없음</div>
+                    )}
+                </div>
             </div>
-        </div>
-    );
+        );
+    };
 
     const renderCombinedJumpChart = () => {
         const sjItem = strengthenStats.find(i => i.id === 'sj');
@@ -855,11 +876,40 @@ export default function PlayerReport() {
         const sjAvg = sjItem?.avgValue || 0;
         const cmjAvg = cmjItem?.avgValue || 0;
 
+        // Calculate first vs last for SJ and CMJ
+        const getStats = (data: (number | null)[]) => {
+            const valid = data.filter(d => d !== null) as number[];
+            if (valid.length < 2) return null;
+            const f = valid[0];
+            const l = valid[valid.length - 1];
+            return { first: f, last: l, change: l - f, pct: ((l - f) / f) * 100 };
+        };
+        const sjStats = getStats(sjData);
+        const cmjStats = getStats(cmjData);
+
         return (
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-slate-200 transition-all print:border-slate-200 print:shadow-none mb-4 break-inside-avoid">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-slate-700 tracking-tight">Squat Jump vs CMJ Comparison</h3>
-                    <div className="px-2 py-0.5 bg-slate-50 rounded text-[9px] text-slate-400 font-black uppercase tracking-widest">ForceDecks</div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-slate-200 transition-all print:border-slate-200 print:shadow-none mb-4 break-inside-avoid overflow-hidden">
+                <div className="flex justify-between items-start mb-4">
+                    <div>
+                        <h3 className="font-bold text-slate-700 tracking-tight">Squat Jump vs CMJ Comparison</h3>
+                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">ForceDecks</div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                        {sjStats && (
+                            <div className="flex gap-2 text-[10px] font-bold">
+                                <span className="text-blue-500">SJ:</span>
+                                <span className="text-slate-400">{sjStats.first}→{sjStats.last}</span>
+                                <span className={sjStats.change >= 0 ? "text-emerald-500" : "text-red-500"}>({sjStats.change > 0 ? '+' : ''}{sjStats.pct.toFixed(1)}%)</span>
+                            </div>
+                        )}
+                        {cmjStats && (
+                            <div className="flex gap-2 text-[10px] font-bold">
+                                <span className="text-red-500">CMJ:</span>
+                                <span className="text-slate-400">{cmjStats.first}→{cmjStats.last}</span>
+                                <span className={cmjStats.change >= 0 ? "text-emerald-500" : "text-red-500"}>({cmjStats.change > 0 ? '+' : ''}{cmjStats.pct.toFixed(1)}%)</span>
+                            </div>
+                        )}
+                    </div>
                 </div>
                 <div className="h-[210px] w-full">
                     <Line
@@ -915,6 +965,7 @@ export default function PlayerReport() {
                         options={{
                             responsive: true,
                             maintainAspectRatio: false,
+                            layout: { padding: { right: 10, left: 0 } },
                             scales: {
                                 x: { offset: true, grid: { display: false }, ticks: { font: { size: 10 } } },
                                 y: { display: false, min: Math.min(...sjData.filter(d => d !== null) as number[], ...cmjData.filter(d => d !== null) as number[], sjAvg || Infinity, cmjAvg || Infinity) * 0.95, max: Math.max(...sjData.filter(d => d !== null) as number[], ...cmjData.filter(d => d !== null) as number[], sjAvg || 0, cmjAvg || 0) * 1.05 }
@@ -1074,18 +1125,32 @@ export default function PlayerReport() {
                 </div>
 
                 {/* 2. Body Composition Charts */}
-                <div className="col-span-12 lg:col-span-4 print:col-span-4 flex flex-col gap-4">
+                <div className="col-span-12 lg:col-span-4 print:col-span-4 flex flex-col gap-4 h-full">
                     {/* Height Chart */}
-                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex-1 min-h-[160px]">
-                        <div className="flex justify-between items-center mb-2">
-                            <h3 className="font-bold text-slate-700 tracking-tight">신장</h3>
-                            {bodyCompStats.height.length > 0 &&
-                                <div className="flex gap-2 text-xs">
-                                    <span className="text-slate-400">{bodyCompStats.height[0].date}: <b className="text-slate-600">{bodyCompStats.height[0].value}</b></span>
-                                    <span className="text-slate-400">→</span>
-                                    <span className="text-emerald-500 font-bold">{bodyCompStats.height[bodyCompStats.height.length - 1].value} cm</span>
-                                </div>
-                            }
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex-1 min-h-[160px] overflow-hidden flex flex-col justify-between">
+                        <div className="flex justify-between items-start mb-2">
+                            <div>
+                                <h3 className="font-bold text-slate-700 tracking-tight">신장</h3>
+                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">InBody</span>
+                            </div>
+                            {bodyCompStats.height.length > 0 && (() => {
+                                const first = bodyCompStats.height[0];
+                                const last = bodyCompStats.height[bodyCompStats.height.length - 1];
+                                const change = last.value - first.value;
+                                const pct = first.value > 0 ? ((change / first.value) * 100).toFixed(1) : '0.0';
+                                return (
+                                    <div className="text-right">
+                                        <div className="text-xs font-bold text-slate-600">
+                                            <span className="text-slate-400">{first.value}</span>
+                                            <span className="mx-1 text-slate-300">→</span>
+                                            {last.value} <span className="text-[10px] text-slate-400">cm</span>
+                                        </div>
+                                        <div className={`text-[10px] font-bold ${change >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                            {change >= 0 ? '+' : ''}{change.toFixed(1)} ({change >= 0 ? '+' : ''}{pct}%)
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                         </div>
                         <div className="h-[160px] w-full">
                             <Line
@@ -1095,6 +1160,7 @@ export default function PlayerReport() {
                                 }}
                                 options={{
                                     responsive: true, maintainAspectRatio: false,
+                                    layout: { padding: { right: 10, left: 0 } },
                                     scales: {
                                         x: { display: true, grid: { display: false }, ticks: { font: { size: 9 } } },
                                         y: { display: false, min: Math.min(...bodyCompStats.height.map((h: any) => h.value)) * 0.95, max: Math.max(...bodyCompStats.height.map((h: any) => h.value)) * 1.05 }
@@ -1106,12 +1172,34 @@ export default function PlayerReport() {
                     </div>
 
                     {/* Weight/Muscle/Fat Chart */}
-                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex-1 min-h-[160px]">
-                        <div className="flex justify-between items-center mb-2">
-                            <h3 className="font-bold text-slate-700 tracking-tight">체중 / 근육량 / 체지방량</h3>
-                            {bodyCompStats.weight.length > 0 &&
-                                <span className="text-xs font-bold text-slate-800">{bodyCompStats.weight[bodyCompStats.weight.length - 1].value} kg</span>
-                            }
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex-1 min-h-[160px] overflow-hidden flex flex-col justify-between">
+                        <div className="flex justify-between items-start mb-2">
+                            <div>
+                                <h3 className="font-bold text-slate-700 tracking-tight">체중 / 근육 / 체지방</h3>
+                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">InBody</span>
+                            </div>
+                            {bodyCompStats.weight.length > 0 && (() => {
+                                const renderStat = (arr: any[], unit: string) => {
+                                    if (arr.length === 0) return null;
+                                    const f = arr[0];
+                                    const l = arr[arr.length - 1];
+                                    if (f.value === null || l.value === null) return null;
+                                    const chg = l.value - f.value;
+                                    return (
+                                        <div className="flex gap-2 justify-end text-[10px] font-bold">
+                                            <span className="text-slate-400">{f.value}→{l.value}</span>
+                                            <span className={`${chg >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{chg >= 0 ? '+' : ''}{chg.toFixed(1)}{unit}</span>
+                                        </div>
+                                    );
+                                };
+                                return (
+                                    <div className="flex flex-col items-end gap-0.5">
+                                        {renderStat(bodyCompStats.weight, 'kg')}
+                                        {renderStat(bodyCompStats.muscle, 'kg')}
+                                        {renderStat(bodyCompStats.fat, 'kg')}
+                                    </div>
+                                );
+                            })()}
                         </div>
                         <div className="h-[160px] w-full">
                             <Line
@@ -1125,6 +1213,7 @@ export default function PlayerReport() {
                                 }}
                                 options={{
                                     responsive: true, maintainAspectRatio: false,
+                                    layout: { padding: { right: 10, left: 0 } },
                                     scales: {
                                         x: { display: true, grid: { display: false }, ticks: { font: { size: 9 } } },
                                         y: {
@@ -1150,7 +1239,7 @@ export default function PlayerReport() {
 
                 {/* 3. Octagon Chart */}
                 {/* 3. Octagon Chart */}
-                <div className="col-span-12 lg:col-span-5 print:col-span-5 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col relative overflow-hidden h-[400px]">
+                <div className="col-span-12 lg:col-span-5 print:col-span-5 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col relative overflow-hidden h-full min-h-[400px]">
                     <div className="flex items-center gap-3 self-start mb-2 z-10">
                         <div className="p-1.5 bg-blue-600 rounded-lg text-white shadow"><Scale size={16} /></div>
                         <div>
@@ -1188,14 +1277,14 @@ export default function PlayerReport() {
                                         if (!meta.hidden) {
                                             meta.data.forEach((point, index) => {
                                                 const value = data.datasets[0].data[index] as number;
-                                                const { x, y } = point.tooltipPosition(true);
+                                                // @ts-ignore
+                                                const { x, y } = point.tooltipPosition ? point.tooltipPosition(true) : { x: point.x, y: point.y };
 
                                                 ctx.font = 'bold 11px sans-serif';
                                                 ctx.fillStyle = '#0F172A';
                                                 ctx.textAlign = 'center';
                                                 ctx.textBaseline = 'middle';
 
-                                                // Calculate offset to push label outward
                                                 const rScale = chart.scales.r as any;
                                                 const centerX = rScale.xCenter;
                                                 const centerY = rScale.yCenter;
@@ -1204,7 +1293,6 @@ export default function PlayerReport() {
                                                 const labelX = (x || 0) + Math.cos(angle) * 15;
                                                 const labelY = (y || 0) + Math.sin(angle) * 15;
 
-                                                // Draw background for readability
                                                 const text = value.toString();
                                                 const textWidth = ctx.measureText(text).width;
 
@@ -1228,6 +1316,10 @@ export default function PlayerReport() {
                                 }]}
                             />
                         </div>
+                    </div>
+                    {/* Octagon T-Score Info */}
+                    <div className="absolute bottom-3 left-4 right-4 text-[9px] text-slate-300 flex justify-center text-center leading-tight">
+                        *점수 산출(T-Score): T = 50 + 10 × (기록 - 평균) / 표준편차. <br /> 평균 50점, 10점 단위로 표준편차 1배 차이를 의미합니다.
                     </div>
                 </div>
             </div>
