@@ -997,34 +997,7 @@ export default function PlayerReport() {
                                 x: { offset: true, grid: { display: false }, ticks: { font: { size: 10 } } },
                                 y: {
                                     display: false,
-                                    min: (ctx) => {
-                                        const values = [
-                                            ...sjData.filter(d => d !== null) as number[],
-                                            ...cmjData.filter(d => d !== null) as number[],
-                                            sjAvg || 0, cmjAvg || 0
-                                        ].filter(v => v > 0);
-                                        if (values.length === 0) return 0;
-                                        const min = Math.min(...values);
-                                        const max = Math.max(...values);
-                                        const range = max - min;
-                                        // 25% padding for labels
-                                        const padding = range * 0.25 || (max * 0.1);
-                                        return Math.max(0, min - padding);
-                                    },
-                                    max: (ctx) => {
-                                        const values = [
-                                            ...sjData.filter(d => d !== null) as number[],
-                                            ...cmjData.filter(d => d !== null) as number[],
-                                            sjAvg || 0, cmjAvg || 0
-                                        ].filter(v => v > 0);
-                                        if (values.length === 0) return 10;
-                                        const min = Math.min(...values);
-                                        const max = Math.max(...values);
-                                        const range = max - min;
-                                        const padding = range * 0.25 || (max * 0.1);
-                                        return max + padding;
-                                    }
-
+                                    suggestedMin: 0
                                 }
                             },
                             plugins: {
@@ -1160,13 +1133,21 @@ export default function PlayerReport() {
                             },
                             plugins: {
                                 legend: { display: false },
-                                tooltip: { callbacks: { label: (ctx: any) => `${ctx.dataset.label}: SJ ${ctx.raw.x}, CMJ ${ctx.raw.y}` } }
+                                tooltip: {
+                                    callbacks: {
+                                        label: (ctx: any) => {
+                                            if (!ctx.raw) return ctx.dataset.label || '';
+                                            return `${ctx.dataset.label}: SJ ${ctx.raw.x ?? 0}, CMJ ${ctx.raw.y ?? 0}`;
+                                        }
+                                    }
+                                }
                             }
                         }}
                         plugins={[{
                             id: 'customLines_EUR',
                             beforeDraw(chart) {
                                 const { ctx, scales: { x, y } } = chart;
+                                if (!x || !y) return;
                                 ctx.save();
                                 const drawRatioLine = (ratio: number, color: string, label: string) => {
                                     const xMax = x.max;
@@ -1181,9 +1162,16 @@ export default function PlayerReport() {
                                         xEnd = y.max / ratio;
                                     }
 
+                                    const startX = x.getPixelForValue(0);
+                                    const startY = y.getPixelForValue(0);
+                                    const endX = x.getPixelForValue(xEnd);
+                                    const endY = y.getPixelForValue(yEnd);
+
+                                    if (startX === null || startY === null || endX === null || endY === null) return;
+
                                     ctx.beginPath();
-                                    ctx.moveTo(x.getPixelForValue(0), y.getPixelForValue(0));
-                                    ctx.lineTo(x.getPixelForValue(xEnd), y.getPixelForValue(yEnd));
+                                    ctx.moveTo(startX, startY);
+                                    ctx.lineTo(endX, endY);
                                     ctx.strokeStyle = color;
                                     ctx.lineWidth = 1;
                                     ctx.setLineDash([5, 5]);
@@ -1192,8 +1180,8 @@ export default function PlayerReport() {
                                     ctx.font = 'bold 9px sans-serif';
                                     ctx.fillStyle = color;
                                     ctx.textAlign = 'right';
-                                    const labelX = x.getPixelForValue(xEnd) - 5;
-                                    const labelY = y.getPixelForValue(yEnd) - 5;
+                                    const labelX = (endX as number) - 5;
+                                    const labelY = (endY as number) - 5;
                                     if (labelY > chart.chartArea.top && labelY < chart.chartArea.bottom) {
                                         ctx.fillText(label, labelX, labelY);
                                     } else if (yTarget > y.max) {
@@ -1216,7 +1204,9 @@ export default function PlayerReport() {
                                         if (!meta.hidden) {
                                             meta.data.forEach((element, index) => {
                                                 const pointData = dataset.data[index] as any;
-                                                const { x, y } = element.tooltipPosition();
+                                                const pos = element.tooltipPosition(true);
+                                                if (!pos) return;
+                                                const { x, y } = pos;
 
                                                 ctx.save();
                                                 ctx.fillStyle = '#1e293b';
@@ -1225,15 +1215,15 @@ export default function PlayerReport() {
                                                 ctx.textBaseline = 'bottom';
 
                                                 const labelText = dataset.label || '';
-                                                const eur = (pointData.y / pointData.x).toFixed(2);
+                                                const xVal = Number(pointData.x) || 0;
+                                                const yVal = Number(pointData.y) || 0;
+                                                const eur = xVal > 0 ? (yVal / xVal).toFixed(2) : '0.00';
                                                 const valueText = `EUR: ${eur}`;
 
-                                                // Draw Name
-                                                ctx.fillText(labelText, x, y - 14);
-                                                // Draw Value
+                                                ctx.fillText(labelText, x as number, (y as number) - 14);
                                                 ctx.font = '10px sans-serif';
                                                 ctx.fillStyle = '#64748b';
-                                                ctx.fillText(valueText, x, y - 4);
+                                                ctx.fillText(valueText, x as number, (y as number) - 4);
 
                                                 ctx.restore();
                                             });
@@ -1254,7 +1244,10 @@ export default function PlayerReport() {
             const ms = measurements
                 .filter(m => m.test_type === 'ForceFrame' || (m.metrics && (typeof m.metrics === 'string' ? m.metrics : JSON.stringify(m.metrics)).includes(type)))
                 .sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime());
-            if (ms.length > 0) return extractMetricValue(ms[0], type);
+            if (ms.length > 0) {
+                const val = extractMetricValue(ms[0], type);
+                return val ?? 0;
+            }
             return 0;
         };
 
@@ -1318,7 +1311,17 @@ export default function PlayerReport() {
                             },
                             plugins: {
                                 legend: { display: false },
-                                tooltip: { callbacks: { label: (ctx: any) => `${ctx.dataset.label}: Hip Ratio ${(ctx.raw.y / ctx.raw.x).toFixed(2)}` } }
+                                tooltip: {
+                                    callbacks: {
+                                        label: (ctx: any) => {
+                                            if (!ctx.raw) return ctx.dataset.label;
+                                            const xVal = Number(ctx.raw.x) || 0;
+                                            const yVal = Number(ctx.raw.y) || 0;
+                                            const ratio = xVal > 0 ? (yVal / xVal).toFixed(2) : '0.00';
+                                            return `${ctx.dataset.label}: Hip Ratio ${ratio}`;
+                                        }
+                                    }
+                                }
 
                             }
                         }}
@@ -1326,14 +1329,22 @@ export default function PlayerReport() {
                             id: 'customLines_Hip',
                             beforeDraw(chart) {
                                 const { ctx, scales: { x, y } } = chart;
+                                if (!x || !y) return;
                                 ctx.save();
                                 const drawRatioLine = (ratio: number, color: string, label: string) => {
                                     const xMax = x.max;
                                     const yTarget = xMax * ratio;
                                     if (yTarget > y.max) return;
+                                    const startX = x.getPixelForValue(0);
+                                    const startY = y.getPixelForValue(0);
+                                    const endX = x.getPixelForValue(xMax);
+                                    const endY = y.getPixelForValue(yTarget);
+
+                                    if (startX === null || startY === null || endX === null || endY === null) return;
+
                                     ctx.beginPath();
-                                    ctx.moveTo(x.getPixelForValue(0), y.getPixelForValue(0));
-                                    ctx.lineTo(x.getPixelForValue(xMax), y.getPixelForValue(yTarget)); // Simple full width
+                                    ctx.moveTo(startX, startY);
+                                    ctx.lineTo(endX, endY); // Simple full width
                                     ctx.strokeStyle = color;
                                     ctx.lineWidth = 1;
                                     ctx.setLineDash([5, 5]);
@@ -1341,9 +1352,11 @@ export default function PlayerReport() {
                                     ctx.font = 'bold 9px sans-serif';
                                     ctx.fillStyle = color;
                                     ctx.textAlign = 'right';
-                                    const labelX = x.getPixelForValue(xMax) - 5;
-                                    const labelY = y.getPixelForValue(yTarget) - 5;
-                                    if (labelY > chart.chartArea.top && labelY < chart.chartArea.bottom) ctx.fillText(label, labelX, labelY);
+                                    const labelX = (endX as number) - 5;
+                                    const labelY = (endY as number) - 5;
+                                    if (labelY !== null && labelY > chart.chartArea.top && labelY < chart.chartArea.bottom) {
+                                        ctx.fillText(label, labelX as number, labelY as number);
+                                    }
                                 };
                                 drawRatioLine(0.9, '#10B981', 'Ratio 0.9');
                                 drawRatioLine(0.8, '#EF4444', 'Ratio 0.8');
@@ -1361,7 +1374,9 @@ export default function PlayerReport() {
                                         if (!meta.hidden) {
                                             meta.data.forEach((element, index) => {
                                                 const pointData = dataset.data[index] as any;
-                                                const { x, y } = element.tooltipPosition();
+                                                const pos = element.tooltipPosition(true) as { x: number, y: number } | null;
+                                                if (!pos) return;
+                                                const { x, y } = pos;
 
                                                 ctx.save();
                                                 ctx.fillStyle = '#1e293b';
@@ -1370,15 +1385,13 @@ export default function PlayerReport() {
                                                 ctx.textBaseline = 'bottom';
 
                                                 const labelText = dataset.label || '';
-                                                const ratio = (pointData.y / pointData.x).toFixed(2);
-                                                const valueText = `Ratio: ${ratio}`;
+                                                const ratioValue = pointData.x > 0 ? (pointData.y / pointData.x).toFixed(2) : '0';
+                                                const valueText = `Ratio: ${ratioValue}`;
 
-                                                // Draw Name
-                                                ctx.fillText(labelText, x, y - 14);
-                                                // Draw Value
+                                                ctx.fillText(labelText, x as number, (y as number) - 14);
                                                 ctx.font = '10px sans-serif';
                                                 ctx.fillStyle = '#64748b';
-                                                ctx.fillText(valueText, x, y - 4);
+                                                ctx.fillText(valueText, x as number, (y as number) - 4);
 
                                                 ctx.restore();
                                             });
@@ -1540,21 +1553,8 @@ export default function PlayerReport() {
                                         x: { display: true, grid: { display: false }, ticks: { font: { size: 9 } } },
                                         y: {
                                             display: false,
-                                            // Dynamic scale adjustment to fit labels
-                                            min: (ctx) => {
-                                                const values = bodyCompStats.height.map((h: any) => h.value);
-                                                const min = Math.min(...values);
-                                                const max = Math.max(...values);
-                                                const range = max - min;
-                                                return min - (range * 0.2 || min * 0.05);
-                                            },
-                                            max: (ctx) => {
-                                                const values = bodyCompStats.height.map((h: any) => h.value);
-                                                const min = Math.min(...values);
-                                                const max = Math.max(...values);
-                                                const range = max - min;
-                                                return max + (range * 0.2 || max * 0.05);
-                                            }
+                                            suggestedMin: 150,
+                                            suggestedMax: 200
                                         }
                                     },
                                     plugins: { legend: { display: false } }
@@ -1610,31 +1610,8 @@ export default function PlayerReport() {
                                         x: { display: true, grid: { display: false }, ticks: { font: { size: 9 } } },
                                         y: {
                                             display: false,
-                                            // Dynamic scale adjustment to fit labels
-                                            min: (ctx) => {
-                                                const values = [
-                                                    ...bodyCompStats.bodyComp.weight.filter((v: number | null) => v !== null) as number[],
-                                                    ...bodyCompStats.bodyComp.muscle.filter((v: number | null) => v !== null) as number[],
-                                                    ...bodyCompStats.bodyComp.fat.filter((v: number | null) => v !== null) as number[]
-                                                ];
-                                                if (values.length === 0) return 0;
-                                                const min = Math.min(...values);
-                                                const max = Math.max(...values);
-                                                const range = max - min;
-                                                return min - (range * 0.2 || min * 0.05);
-                                            },
-                                            max: (ctx) => {
-                                                const values = [
-                                                    ...bodyCompStats.bodyComp.weight.filter((v: number | null) => v !== null) as number[],
-                                                    ...bodyCompStats.bodyComp.muscle.filter((v: number | null) => v !== null) as number[],
-                                                    ...bodyCompStats.bodyComp.fat.filter((v: number | null) => v !== null) as number[]
-                                                ];
-                                                if (values.length === 0) return 100;
-                                                const min = Math.min(...values);
-                                                const max = Math.max(...values);
-                                                const range = max - min;
-                                                return max + (range * 0.2 || max * 0.05);
-                                            }
+                                            suggestedMin: 10,
+                                            suggestedMax: 100
                                         }
                                     },
                                     plugins: { legend: { display: false } }

@@ -10,8 +10,12 @@ const supabaseAdmin = createClient(
 const IGNORE_KEYS = ['id', 'test', 'date', 'profile', 'valid', 'notes', 'device', 'version', 'pct', 'count', 'idx', 'impulse', 'repetition', 'weight', 'duration', 'mass', 'bmi', 'timestamp', 'tenant', 'recording', 'parameter', 'attribute', 'uuid'];
 
 export async function GET(request: Request) {
+    // 캐싱 헤더 설정 (1시간 동안 유효, 백그라운드에서 갱신)
+    const headers = new Headers();
+    headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
+
     try {
-        // 1. Fetch Profiles to map ID -> Level
+        // 1. Fetch Profiles to map ID -> Level (최소한의 컬럼만 조회)
         const { data: profiles, error: profileError } = await supabaseAdmin
             .from('profiles')
             .select('id, level');
@@ -23,7 +27,7 @@ export async function GET(request: Request) {
             if (p.level) levelMap.set(p.id, p.level);
         });
 
-        // 2. Fetch All Measurements (with pagination to bypass 1000 limit)
+        // 2. Fetch All Measurements (컬럼 필터링 및 페이지네이션 최적화)
         let measurements: any[] = [];
         let page = 0;
         const PAGE_SIZE = 1000;
@@ -40,63 +44,46 @@ export async function GET(request: Request) {
             measurements.push(...data);
             if (data.length < PAGE_SIZE) break;
             page++;
+
+            // 안전장치: 너무 많은 데이터가 쌓일 경우 중단 (성능 보호)
+            if (page > 50) break;
         }
 
-        // 3. Aggregate Data - now with values array for std calculation
-        // Structure: { [testType]: { [metricKey]: { [level]: { values: number[] } } } }
+        // 3. Aggregate Data
         const aggregations: Record<string, Record<string, Record<string, { values: number[] }>>> = {};
 
         measurements.forEach(m => {
             const level = levelMap.get(m.player_id) || 'Unknown';
-            let testType = m.test_type; // Use raw test_type for grouping
+            let testType = m.test_type;
             if (!testType) return;
 
-            // Normalize metrics from different structures (flat or nested)
-            // @ts-ignore
             let flatMetrics = { ...m.metrics, ...(m.metrics?.results || {}), ...(m.metrics?.resultFields || {}) };
 
-            // Special handling for Manual data: { metric_name, value } structure
             if (testType === 'Manual') {
                 if (flatMetrics.metric_name && flatMetrics.value !== undefined) {
                     const metricName = String(flatMetrics.metric_name);
                     const val = Number(flatMetrics.value);
-                    if (!isNaN(val)) {
-                        // Create a synthetic metric entry with metric_name as key
-                        flatMetrics = { [metricName]: val };
-                    } else {
-                        return; // Skip if value is not a number
-                    }
-                } else {
-                    return; // Skip Manual entries without proper structure
-                }
+                    if (!isNaN(val)) flatMetrics = { [metricName]: val };
+                    else return;
+                } else return;
             }
 
-            // For ForceDecks, get the sub-test name (SJ, CMJ, HJ, etc.)
             let subTestName = '';
             if (testType === 'ForceDecks') {
                 const testName = flatMetrics.testTypeName || flatMetrics.test_name || flatMetrics.testType || '';
-                if (testName.includes('SJ') || testName.includes('Squat Jump')) {
-                    subTestName = 'SJ';
-                } else if (testName.includes('CMJ') || testName.includes('Countermovement')) {
-                    subTestName = 'CMJ';
-                } else if (testName.includes('HJ') || testName.includes('Hop')) {
-                    subTestName = 'HJ';
-                } else if (testName.includes('Drop') || testName.includes('DJ')) {
-                    subTestName = 'DJ';
-                }
+                if (testName.includes('SJ') || testName.includes('Squat Jump')) subTestName = 'SJ';
+                else if (testName.includes('CMJ') || testName.includes('Countermovement')) subTestName = 'CMJ';
+                else if (testName.includes('HJ') || testName.includes('Hop')) subTestName = 'HJ';
+                else if (testName.includes('Drop') || testName.includes('DJ')) subTestName = 'DJ';
             }
 
-            // Use combined key for ForceDecks with sub-test
             const groupKey = subTestName ? `${testType}_${subTestName}` : testType;
 
             Object.keys(flatMetrics).forEach(key => {
                 const val = flatMetrics[key];
                 if (typeof val !== 'number') return;
-
-                // Simple filter for relevant metrics (skip IDs, timestamps, etc.)
                 if (IGNORE_KEYS.some(ig => key.toLowerCase().includes(ig))) return;
 
-                // Helper to add value to level
                 const addToLevel = (group: string, lvl: string) => {
                     if (!aggregations[group]) aggregations[group] = {};
                     if (!aggregations[group][key]) aggregations[group][key] = {};
@@ -104,11 +91,8 @@ export async function GET(request: Request) {
                     aggregations[group][key][lvl].values.push(val);
                 };
 
-                // Add to specific group (ForceDecks_SJ, ForceDecks_CMJ, etc.)
                 addToLevel(groupKey, level);
                 addToLevel(groupKey, 'ALL');
-
-                // Also add to general device group for backward compatibility
                 if (groupKey !== testType) {
                     addToLevel(testType, level);
                     addToLevel(testType, 'ALL');
@@ -116,7 +100,7 @@ export async function GET(request: Request) {
             });
         });
 
-        // 4. Calculate Statistics (mean, std, min, max)
+        // 4. Calculate Statistics
         const stats: Record<string, Record<string, Record<string, { mean: number, std: number, min: number, max: number, count: number }>>> = {};
 
         Object.keys(aggregations).forEach(testType => {
@@ -126,16 +110,11 @@ export async function GET(request: Request) {
                 Object.keys(aggregations[testType][metric]).forEach(lvl => {
                     const { values } = aggregations[testType][metric][lvl];
                     const count = values.length;
-                    if (count === 0) {
-                        stats[testType][metric][lvl] = { mean: 0, std: 0, min: 0, max: 0, count: 0 };
-                        return;
-                    }
+                    if (count === 0) return;
 
                     const mean = values.reduce((a, b) => a + b, 0) / count;
                     const min = Math.min(...values);
                     const max = Math.max(...values);
-
-                    // Calculate standard deviation
                     const squaredDiffs = values.map(v => Math.pow(v - mean, 2));
                     const variance = squaredDiffs.reduce((a, b) => a + b, 0) / count;
                     const std = Math.sqrt(variance);
@@ -151,7 +130,7 @@ export async function GET(request: Request) {
             });
         });
 
-        return NextResponse.json(stats);
+        return NextResponse.json(stats, { headers });
     } catch (e: any) {
         console.error("Aggregation Error:", e);
         return NextResponse.json({ error: e.message }, { status: 500 });

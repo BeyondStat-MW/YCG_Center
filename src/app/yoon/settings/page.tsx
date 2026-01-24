@@ -65,12 +65,6 @@ export default function SettingsPage() {
                     label="선수 관리"
                 />
                 <TabButton
-                    active={activeTab === 'manual'}
-                    onClick={() => setActiveTab('manual')}
-                    icon={Edit3}
-                    label="수기 기록"
-                />
-                <TabButton
                     active={activeTab === 'metrics'}
                     onClick={() => setActiveTab('metrics')}
                     icon={Settings}
@@ -87,7 +81,6 @@ export default function SettingsPage() {
             {/* Content Area */}
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden min-h-[600px]">
                 {activeTab === 'players' && <PlayerManagement players={players} onRefresh={fetchPlayers} />}
-                {activeTab === 'manual' && <ManualEntry players={players} />}
                 {activeTab === 'metrics' && (
                     <div className="p-8">
                         <div className="flex justify-end mb-4">

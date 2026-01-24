@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { LayoutDashboard, Users, Activity, Settings, Filter, Zap, ClipboardList, Database } from 'lucide-react';
+import { LayoutDashboard, Users, Activity, Settings, Edit3, Zap, ClipboardList, Database } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useState, Suspense } from 'react';
 
@@ -12,6 +12,10 @@ const menuItems = [
     { name: '선수 리포트', href: '/yoon/player', icon: Users },
     { name: '재활 차트', href: '/yoon/rehab', icon: ClipboardList },
     { name: '카이저 400', href: '/yoon/keiser', icon: Zap },
+];
+
+const adminItems = [
+    { name: '수기 기록', href: '/yoon/manual', icon: Edit3 },
     { name: '설정', href: '/yoon/settings', icon: Settings },
 ];
 
@@ -47,6 +51,27 @@ function SidebarContent() {
                             )}
                         >
                             <Icon size={20} className={clsx("transition-transform group-hover:scale-110", isActive ? "text-white" : "text-slate-500 group-hover:text-blue-400")} />
+                            <span className="text-sm">{item.name}</span>
+                        </Link>
+                    );
+                })}
+
+                <div className="pt-6 px-2 mb-2"><span className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-2">System Admin</span></div>
+                {adminItems.map((item) => {
+                    const isActive = pathname === item.href || (pathname.startsWith(item.href));
+                    const Icon = item.icon;
+                    return (
+                        <Link
+                            key={item.name}
+                            href={item.href}
+                            className={clsx(
+                                "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group",
+                                isActive
+                                    ? "bg-amber-600 text-white shadow-lg shadow-amber-900/20 font-bold"
+                                    : "text-slate-400 hover:bg-slate-800 hover:text-white font-medium"
+                            )}
+                        >
+                            <Icon size={20} className={clsx("transition-transform group-hover:scale-110", isActive ? "text-white" : "text-slate-500 group-hover:text-amber-400")} />
                             <span className="text-sm">{item.name}</span>
                         </Link>
                     );
